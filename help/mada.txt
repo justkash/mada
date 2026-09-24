@@ -1,0 +1,46 @@
+*mada.txt*  Render Markdown in place
+
+==============================================================================
+CONTENTS                                                              *mada*
+
+    1. Introduction .....................................|mada-introduction|
+    2. Setup .....................................................|mada-setup|
+    3. Lua API .................................................|mada-lua-api|
+
+==============================================================================
+1. Introduction                                        *mada-introduction*
+
+mada renders Markdown buffers in place: styled in Normal mode, raw in
+Insert mode, Mermaid fences as diagrams.
+
+Pre-release: nothing is implemented yet. See README.md,
+docs/requirements.md and docs/architecture.md in the source tree.
+
+==============================================================================
+2. Setup                                                      *mada-setup*
+
+Zero-config: mada attaches on `FileType markdown` without calling
+`setup()`. To change any option, call `setup()` once: >lua
+
+    require("mada").setup({
+      ascii = true,
+    })
+<
+`setup()` deep-merges its argument over the defaults and may be called
+more than once; the last call wins. See README.md for the full list of
+default keys.
+
+==============================================================================
+3. Lua API                                                  *mada-lua-api*
+
+                                                            *mada.setup()*
+setup({opts})
+    Initialise mada with user {opts}, see |mada-setup|.
+
+                                                          *mada.version()*
+version()
+    Return the installed plugin version as a string, or "dev" when
+    built without Nix.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
