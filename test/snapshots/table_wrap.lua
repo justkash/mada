@@ -27,26 +27,13 @@ return { {
     },
     row = 0
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "┌──────┬──────────────────────────────────────────────────────────────┬────────┐", "MadaTableBorder" } } },
-      virt_lines_above = true,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 2
-  }, {
     col = 15,
     opts = {
       invalidate = true,
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaTableBorder" }, { " " }, { "Name", "MadaTableHead" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "Description", "MadaTableHead" }, { "                                                 " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "Status", "MadaTableHead" }, { " " }, { "│", "MadaTableBorder" } },
+      virt_text = { { " " }, { " " }, { "Name", "MadaTableHead" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "Description", "MadaTableHead" }, { "                                                 " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "Status", "MadaTableHead" }, { " " }, { " " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -60,7 +47,7 @@ return { {
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "├──────┼──────────────────────────────────────────────────────────────┼────────┤", "MadaTableBorder" } },
+      virt_text = { { " ──────┼──────────────────────────────────────────────────────────────┼──────── ", "MadaTableBorder" } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -68,26 +55,13 @@ return { {
     },
     row = 3
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "├──────┼──────────────────────────────────────────────────────────────┼────────┤", "MadaTableBorder" } } },
-      virt_lines_above = false,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 4
-  }, {
     col = 40,
     opts = {
       invalidate = true,
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaTableBorder" }, { " " }, { "foo" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "a long description that certainly will not fit into a narrow" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "    " }, { "ok", "MadaStrong" }, { " " }, { "│", "MadaTableBorder" } },
+      virt_text = { { " " }, { " " }, { "foo" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "a long description that certainly will not fit into a narrow" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "    " }, { "ok", "MadaStrong" }, { " " }, { " " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -101,7 +75,7 @@ return { {
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaTableBorder" }, { " " }, { "    " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "window at all" }, { "                                               " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "      " }, { " " }, { "│", "MadaTableBorder" } },
+      virt_text = { { " " }, { " " }, { "    " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "window at all" }, { "                                               " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "      " }, { " " }, { " " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -109,26 +83,13 @@ return { {
     },
     row = 4
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "├──────┼──────────────────────────────────────────────────────────────┼────────┤", "MadaTableBorder" } } },
-      virt_lines_above = false,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 5
-  }, {
     col = 11,
     opts = {
       invalidate = true,
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaTableBorder" }, { " " }, { "bar", "MadaCode" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "short" }, { "                                                       " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "   " }, { "b|c" }, { " " }, { "│", "MadaTableBorder" } },
+      virt_text = { { " " }, { " " }, { "bar", "MadaCode" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "short" }, { "                                                       " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "   " }, { "b|c" }, { " " }, { " " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -136,26 +97,13 @@ return { {
     },
     row = 5
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "└──────┴──────────────────────────────────────────────────────────────┴────────┘", "MadaTableBorder" } } },
-      virt_lines_above = false,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 6
-  }, {
     col = 15,
     opts = {
       invalidate = true,
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaTableBorder" }, { " " }, { "baz" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "                                                            " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "  " }, { "link", "MadaLink" }, { " " }, { "│", "MadaTableBorder" } },
+      virt_text = { { " " }, { " " }, { "baz" }, { " " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "                                                            " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "  " }, { "link", "MadaLink" }, { " " }, { " " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -179,19 +127,6 @@ return { {
     },
     row = 8
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "│", "MadaQuote" }, { " " }, { "┌──────────────────────────┬───┐", "MadaTableBorder" } } },
-      virt_lines_above = true,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 8
-  }, {
     col = 2,
     opts = {
       end_col = 11,
@@ -212,7 +147,7 @@ return { {
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaQuote" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "a", "MadaTableHead" }, { "                       " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "b", "MadaTableHead" }, { " " }, { "│", "MadaTableBorder" }, { "                                              " } },
+      virt_text = { { "│", "MadaQuote" }, { " " }, { " " }, { " " }, { "a", "MadaTableHead" }, { "                       " }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "b", "MadaTableHead" }, { " " }, { " " }, { "                                              " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -256,7 +191,7 @@ return { {
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaQuote" }, { " " }, { "├──────────────────────────┼───┤", "MadaTableBorder" }, { "                                              " } },
+      virt_text = { { "│", "MadaQuote" }, { " " }, { " ──────────────────────────┼─── ", "MadaTableBorder" }, { "                                              " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,
@@ -280,19 +215,6 @@ return { {
     },
     row = 10
   }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "│", "MadaQuote" }, { " " }, { "└──────────────────────────┴───┘", "MadaTableBorder" } } },
-      virt_lines_above = false,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 10
-  }, {
     col = 2,
     opts = {
       end_col = 34,
@@ -313,7 +235,7 @@ return { {
       priority = 120,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "│", "MadaQuote" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "quoted cell content here" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "x" }, { " " }, { "│", "MadaTableBorder" }, { "                                              " } },
+      virt_text = { { "│", "MadaQuote" }, { " " }, { " " }, { " " }, { "quoted cell content here" }, { " " }, { "│", "MadaTableBorder" }, { " " }, { "x" }, { " " }, { " " }, { "                                              " } },
       virt_text_hide = false,
       virt_text_pos = "win_col",
       virt_text_repeat_linebreak = false,

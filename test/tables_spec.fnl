@@ -1,4 +1,4 @@
-;; test.tables_spec - FR-R13, AT-30: pipe tables laid out as a boxed grid,
+;; test.tables_spec - FR-R13, AT-30: pipe tables laid out as an open grid,
 ;; drawn over the source rows rather than in place of them. Reconstructs
 ;; displayed lines from extmarks (no real screen redraw needed for most
 ;; cases) so assertions read like the diagram in the design: a source row's
@@ -151,6 +151,40 @@ row."
   (each [_ l (ipairs lines)] (when (l:find needle 1 true) (set found true)))
   found)
 
+(fn test-open-grid-borders []
+  (mada.setup {:anti_conceal false})
+  (let [buf (scratch-md ["| A | B |" "| --- | --- |" "| a | b |" "| c | d |"])
+        win (sized-win 40 false)]
+    (render! buf win)
+    (let [lines (reconstruct buf)]
+      (check (= (length lines) 4)
+             "open grid: exactly one display line per source row")
+      (check (find-substr lines "───┼───")
+             "open grid: header separator crosses the interior divider")
+      (check (find-substr lines "  a │ b  ")
+             "open grid: body rows retain interior dividers")
+      (each [_ glyph (ipairs ["┌" "┬" "┐" "├" "┤" "└" "┴" "┘"])]
+        (check (not (find-substr lines glyph))
+               "open grid: no outer or body-row junctions"))
+      (each [_ l (ipairs lines)]
+        (check (not (l:match "^│")) "open grid: no left outer divider"))))
+  (let [buf (scratch-md ["| H |" "| --- |" "| value |"])
+        win (sized-win 40 false)]
+    (render! buf win)
+    (let [lines (reconstruct buf)]
+      (check (= (length lines) 3) "single column: exactly three display lines")
+      (check (find-substr lines "  value  ")
+             "single column: cell has open sides")
+      (check (not (find-substr lines "│"))
+             "single column: no vertical border")))
+  (let [buf (scratch-md ["| H |" "| --- |"])
+        win (sized-win 40 false)]
+    (render! buf win)
+    (let [lines (reconstruct buf)]
+      (check (= (length lines) 2) "header only: exactly two display lines")
+      (check (find-substr lines "───")
+             "header only: delimiter remains a horizontal rule"))))
+
 ;; ---- AT-30: fits a narrow window, wraps, re-lays-out on resize -----------
 
 (local wide-lines ["# T"
@@ -174,8 +208,9 @@ row."
                (: "AT-30: line %q wider than the 60-column window" :format l)))
       (check (find-substr lines60 :narrow)
              "AT-30: the wrapped 'Description' cell should still contain every word")
-      (check (find-substr lines60 "┌") "AT-30: expected a top border")
-      (check (find-substr lines60 "└") "AT-30: expected a bottom border")
+      (check (find-substr lines60 "┼") "AT-30: expected a header separator")
+      (check (not (find-substr lines60 "┌")) "AT-30: no top border")
+      (check (not (find-substr lines60 "└")) "AT-30: no bottom border")
       ;; widening the window (a vsplit window's width is bounded by the
       ;; terminal's total columns headless, test.mermaid_spec's width-bucket
       ;; test note, so this stays within it) re-lays-out to wider, natural
@@ -196,12 +231,12 @@ row."
         win (sized-win 40 false)]
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "│ a")
-             "left: content should hug the left border")
+      (check (find-substr lines "  a")
+             "left: content should hug the left cell padding")
       (check (find-substr lines "│    C     │")
              "center: 'C' should be padded both sides, extra space on the right")
-      (check (find-substr lines "R │")
-             "right: content should hug the right border"))))
+      (check (find-substr lines "R  ")
+             "right: content should hug the right cell padding"))))
 
 ;; ---- inline styling, escapes, code spans -----------------------------------
 
@@ -248,14 +283,14 @@ row."
         win (sized-win 40 false)]
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "│ only │   │")
+      (check (find-substr lines "  only │     ")
              "missing trailing cell should render empty, not drop the row")
       (check (not (find-substr lines :z))
              "an extra cell beyond the header's count should be ignored")
-      (check (find-substr lines "│      │ w")
+      (check (find-substr lines "│ w")
              "an empty leading cell should render blank"))))
 
-;; ---- cursor row raw; rule/top border kept; height unchanged (nowrap) ------
+;; ---- cursor row raw; header rule kept; height unchanged (nowrap) -----------
 
 (fn test-cursor-nowrap []
   (mada.setup {:anti_conceal true})
@@ -270,9 +305,9 @@ row."
       (let [lines (reconstruct buf)]
         (check (find-substr lines "| a | b |")
                "cursor row: expected raw source shown")
-        (check (find-substr lines "┌") "cursor row: top border should stay")
-        (check (find-substr lines "├")
-               "cursor row: the rule below it should stay")
+        (check (find-substr lines "┼") "cursor row: header rule should stay")
+        (check (not (find-substr lines "├"))
+               "cursor row: no rule below body rows")
         (check (= (length lines) (length lines-baseline))
                "cursor row: total screen-line count should not change (no height jump)")))
     (set-cursor! buf win 0)
@@ -280,8 +315,7 @@ row."
     (let [lines (reconstruct buf)]
       (check (find-substr lines "| A | B |")
              "cursor on header: expected raw source shown")
-      (check (find-substr lines "┌")
-             "cursor on header: top border should stay"))))
+      (check (not (find-substr lines "┌")) "cursor on header: no top border"))))
 
 ;; ---- wrap window: no blank screen rows inside the grid; toggling `wrap`/
 ;; `linebreak` re-lays out (AT-32) -------------------------------------------
@@ -298,18 +332,15 @@ row."
     (set-cursor! buf win 0)
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "┌") "wrap: expected a top border")
-      (check (find-substr lines "│ a │ b │")
+      (check (find-substr lines "┼") "wrap: expected a header rule")
+      (check (find-substr lines "  a │ b  ")
              "wrap: expected the styled body row")
-      ;; only the grid's own lines (top border .. bottom border) must have
-      ;; no blank screen row; a blank buffer line after the table is fine.
-      (var in-grid false)
-      (each [_ l (ipairs lines)]
-        (when (l:find "┌" 1 true) (set in-grid true))
-        (when in-grid
+      ;; Only the four table source rows are checked; a blank buffer line
+      ;; after the table is fine.
+      (for [i 1 4]
+        (let [l (. lines i)]
           (check (not (l:match "^%s*$"))
-                 "wrap: no blank screen row should appear inside the grid"))
-        (when (l:find "└" 1 true) (set in-grid false))))
+                 "wrap: no blank screen row should appear inside the grid"))))
     ;; cursor on a body row: that row shows raw, no anchor/split needed.
     (set-cursor! buf win 2)
     (render! buf win)
@@ -359,7 +390,7 @@ row."
       (h.eq incremental (h.marks buf)
             "incremental cursor update should match a full re-render"))))
 
-;; ---- table ending the buffer: full grid, no blank rows ---------------------
+;; ---- table ending the buffer: no extra lines -------------------------------
 
 (fn test-eof-full-grid []
   (mada.setup {:anti_conceal false})
@@ -367,9 +398,8 @@ row."
         win (sized-win 40 true)]
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "┌")
-             "eof: expected a top border even with no row after the table")
-      (check (find-substr lines "└") "eof: expected a bottom border")
+      (check (find-substr lines "┼") "eof: expected a header rule")
+      (check (= (length lines) 3) "eof: expected exactly three source rows")
       (each [_ l (ipairs lines)]
         (check (not (l:match "^%s*$"))
                "eof: no blank screen row should appear inside the grid")))))
@@ -386,17 +416,16 @@ row."
     (render! buf win)
     (let [s_r (s_r_of win 2)
           overlays (row-overlays buf 2)]
-      (check (> s_r 2) (: "expected the raw source row to wrap past its 2-line laid-out content (1 content + 1 rule), got S_r=%d"
+      (check (> s_r 1) (: "expected the raw source row to wrap past its 1-line laid-out content, got S_r=%d"
                           :format s_r))
       (check (= (length overlays) s_r)
              (: "expected one overlay per screen row: S_r=%d, got %d overlays"
                 :format s_r (length overlays)))
       (let [last-text (chunk-text (. overlays (length overlays) :opts
                                      :virt_text))]
-        (check (last-text:find "└")
-               "expected the bottom border on the row's last screen row"))
-      ;; a middle screen row (padding, not the border) should be a blank
-      ;; grid line: border glyphs with nothing but spaces between.
+        (check (not (last-text:find "└"))
+               "expected no bottom border on the row's last screen row"))
+      ;; A middle screen row is padding with no cell content.
       (let [mid-text (chunk-text (. overlays 2 :opts :virt_text))]
         (check (not (mid-text:find "[1-9]"))
                "expected a blank grid line (no cell content) as padding")))))
@@ -425,8 +454,8 @@ row."
         win (sized-win 40 false)]
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "│ ┌")
-             "quoted table: expected the quote bar before the top border"))))
+      (check (find-substr lines "│   A")
+             "quoted table: expected the quote bar before table content"))))
 
 ;; ---- image in a cell draws its icon once (owned filtering) ----------------
 
@@ -450,18 +479,20 @@ row."
         win (sized-win 40 false)]
     (render! buf win)
     (let [lines (reconstruct buf)]
-      (check (find-substr lines "+") "ascii: expected '+' corner/cross glyphs")
+      (check (find-substr lines "+") "ascii: expected '+' header cross glyph")
       (check (find-substr lines "|") "ascii: expected '|' vertical glyphs")
       (check (not (find-substr lines "┌")) "ascii: no unicode border glyphs")))
   (mada.setup {}))
 
-[["AT-30: table fits a 60-col window, wraps intact, re-lays-out at 100 cols"
+[["open grid keeps only header rule and interior dividers"
+  test-open-grid-borders]
+ ["AT-30: table fits a 60-col window, wraps intact, re-lays-out at 100 cols"
   test-at30-fits-and-wraps]
  ["alignment: left/center/right from the delimiter row" test-alignment]
  ["inline styling inside cells: bold, escaped pipe, code span"
   test-inline-styling]
  ["empty/missing/extra cells" test-cell-counts]
- ["cursor row raw, rule/top border kept, height unchanged (nowrap)"
+ ["cursor row raw, header rule kept, height unchanged (nowrap)"
   test-cursor-nowrap]
  ["AT-32: wrap window, no blank screen rows inside the grid; toggling wrap/linebreak re-lays out"
   test-wrap-grid-no-blank-rows]

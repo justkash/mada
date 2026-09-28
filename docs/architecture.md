@@ -188,7 +188,7 @@ on CursorMoved(buf)
 | Fenced code | `conceal_line` on fences (`hide_fences`); `line_hl MadaCodeBlock` on content rows; `right_align` language on the first content row |
 | Indented code | `line_hl MadaCodeBlock` per row |
 | Thematic break | `overlay` of `rule` over the source + `inline` `rule` to the window width |
-| Table | `tables.fnl` (FR-R13), single path: rows never concealed or hidden; grid lines drawn as overlays at window column 0, one per screen row S of that row; lines beyond S in `virt_lines` mark; inline marks on non-cursor rows dropped; cursor row raw in place, lines below keep count with cells blanked, rule kept; top border `virt_lines_above` the header; delimiter row shows header rule (or bottom border when no body); body rows show content then rule after |
+| Table | `tables.fnl` (FR-R13), single path: rows never concealed or hidden; header separator and column separators drawn as overlays at window column 0, one per screen row S of that row; lines beyond S in `virt_lines` mark; inline marks on non-cursor rows dropped; cursor row raw in place, lines below keep count with cells blanked and header separator retained when applicable; no outer borders or body row rules |
 | HTML comment | `hl MadaComment` per row |
 | Front matter | `line_hl MadaComment` per row |
 | Backslash escape | `conceal` the `\` |
@@ -377,7 +377,7 @@ Defaults (README's table must match, FR-C3):
 
 ## 10. Highlights
 
-`hl.define()` on `setup` and `ColorScheme`: `nvim_set_hl(0, group, {link = target, default = true})` for every group in requirements §7.2. A group that adds an attribute (bold, underline, italic) instead copies the target's resolved attributes from `nvim_get_hl(0, {name = target, link = false})` and adds it, still `default = true`.
+`hl.define()` runs on `setup` and `ColorScheme`: linked groups use `nvim_set_hl(0, group, {link = target, default = true})`; a group that adds an attribute (bold, underline, italic) copies the target's resolved attributes from `nvim_get_hl(0, {name = target, link = false})` and adds it, still with `default = true`. `MadaTableBorder` derives its foreground from the `Normal` background, slightly lighter. Plugin-owned values refresh on setup and `ColorScheme`; explicit user overrides win.
 
 ## 11. Health
 

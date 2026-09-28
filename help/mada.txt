@@ -26,7 +26,7 @@ Rendered mode hides delimiters that carry no meaning once styled (emphasis
 markers, backticks, link brackets, code fences, and heading markers when
 `headings.conceal_markers` is enabled) and turns
 structural markers into glyphs (bullets, checkboxes, quote bars, rules,
-table borders). Mermaid fenced blocks are drawn as text diagrams in place of
+table separators). Mermaid fenced blocks are drawn as text diagrams in place of
 their source.
 
 Raw mode, entered in Insert, Replace and Select mode, shows the buffer
@@ -165,9 +165,10 @@ links.show_url                                    *mada-option-links.show_url*
 
 tables.style                                        *mada-option-tables.style*
     "unicode" | "off" (default "unicode")
-    `"unicode"` lays the table out as a boxed grid in virtual text
-    (FR-R13): grid lines drawn as overlays over each row's own screen
-    rows; nothing is hidden. `"off"` applies highlights only, no layout.
+    `"unicode"` lays the table out in virtual text (FR-R13): a horizontal
+    rule below the header and vertical separators between columns. There are
+    no outer borders or horizontal rules between body rows. Nothing is hidden.
+    `"off"` applies highlights only, no layout.
 
 tables.border.v                                  *mada-option-tables.border.v*
     string (default `"│"`)
@@ -175,43 +176,43 @@ tables.border.v                                  *mada-option-tables.border.v*
 
 tables.border.h                                  *mada-option-tables.border.h*
     string (default `"─"`)
-    Horizontal glyph in the delimiter row.
+    Horizontal glyph in the separator below the header.
 
 tables.border.cross                          *mada-option-tables.border.cross*
     string (default `"┼"`)
-    Interior crossing glyph in the delimiter row.
+    Crossing glyph between columns in the header separator.
 
 tables.border.left                            *mada-option-tables.border.left*
     string (default `"├"`)
-    Left-edge glyph in the delimiter row.
+    Legacy left-edge glyph option; accepted for compatibility, but not drawn.
 
 tables.border.right                          *mada-option-tables.border.right*
     string (default `"┤"`)
-    Right-edge glyph in the delimiter row.
+    Legacy right-edge glyph option; accepted for compatibility, but not drawn.
 
 tables.border.top_left                    *mada-option-tables.border.top_left*
     string (default `"┌"`)
-    Top-left corner glyph of the grid.
+    Legacy top-left corner option; accepted for compatibility, but not drawn.
 
 tables.border.top_cross                  *mada-option-tables.border.top_cross*
     string (default `"┬"`)
-    Top-edge crossing glyph, above each interior column boundary.
+    Legacy top-edge crossing option; accepted for compatibility, but not drawn.
 
 tables.border.top_right                  *mada-option-tables.border.top_right*
     string (default `"┐"`)
-    Top-right corner glyph of the grid.
+    Legacy top-right corner option; accepted for compatibility, but not drawn.
 
 tables.border.bottom_left              *mada-option-tables.border.bottom_left*
     string (default `"└"`)
-    Bottom-left corner glyph of the grid.
+    Legacy bottom-left corner option; accepted for compatibility, but not drawn.
 
 tables.border.bottom_cross            *mada-option-tables.border.bottom_cross*
     string (default `"┴"`)
-    Bottom-edge crossing glyph, below each interior column boundary.
+    Legacy bottom-edge crossing option; accepted for compatibility, but not drawn.
 
 tables.border.bottom_right            *mada-option-tables.border.bottom_right*
     string (default `"┘"`)
-    Bottom-right corner glyph of the grid.
+    Legacy bottom-right corner option; accepted for compatibility, but not drawn.
 
 mermaid.placement                              *mada-option-mermaid.placement*
     "replace" | "off" (default "replace")
@@ -331,9 +332,10 @@ Example: >lua
 ==============================================================================
 8. Highlight groups                                          *mada-highlights*
 
-Every group is defined with `default = true` (a colourscheme or user `:hi`
-wins) and links to a `@markup.*` or built-in group, so no colour setup is
-needed:
+Most groups are defined with `default = true` and link to a `@markup.*` or
+built-in group. `MadaTableBorder` instead uses a foreground slightly lighter
+than the `Normal` background; explicit colourscheme or user `:hi` overrides
+win. No colour setup is needed:
 
     Group                Default                         Used for
     -------------------------------------------------------------
@@ -361,7 +363,7 @@ needed:
     MadaQuoteText        @markup.quote                   quote body text
     MadaRule             @punctuation.special            thematic break
     MadaTableHead        @markup.heading, bold           header cells
-    MadaTableBorder      @punctuation.special            table borders
+    MadaTableBorder      derived from Normal background  table separators
     MadaComment          Comment                         comments/front matter
     MadaDiagramLine      NonText                         box-drawing chars
     MadaDiagramText      Normal                          diagram labels
@@ -457,9 +459,6 @@ rows differently than without the plugin (accepted deviation, UR-4).
 follows the window rendered last; marks are per buffer, not per window.
 - A table's virtual lines inside a list or block quote carry only blanks
 and `quote` glyphs as their prefix, not the list marker.
-- A table whose header is the buffer's first line shows no top border
-until the view scrolls up (`<C-y>`); `virt_lines_above` on row 0 does
-not draw until then.
 - A table row whose raw text wraps onto more screen lines than its grid
 lines is padded with blank grid lines.
 - With the tree-sitter highlighter enabled, its conceals on table rows

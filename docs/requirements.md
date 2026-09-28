@@ -18,8 +18,8 @@ Stated from the user's side. Each one has acceptance criteria and lists the requ
 
 - The first screen is drawn already rendered; a raw frame is never shown first. Mermaid diagrams that are not drawn yet arrive shortly after (UR-3).
 - It works with no configuration beyond installing the plugin.
-- **Minimal:** styling uses colour, weight and glyph substitution only. No margins, padding rows, boxes or reflow are added. Delimiters that carry no meaning once styled are hidden: emphasis markers, backticks, link brackets and destinations, heading markers when `headings.conceal_markers` is enabled, code fences. Structural markers become glyphs: bullets, checkboxes, quote bars, rules, table borders. Pipe tables are the exception: they are laid out as a boxed grid in virtual text (FR-R13).
-- **Pretty:** it looks native in the active colourscheme, light or dark. Every highlight group links to a `@markup.*` or built-in group, so no colour setup is needed.
+- **Minimal:** styling uses colour, weight and glyph substitution only. No margins, padding rows, boxes or reflow are added. Delimiters that carry no meaning once styled are hidden: emphasis markers, backticks, link brackets and destinations, heading markers when `headings.conceal_markers` is enabled, code fences. Structural markers become glyphs: bullets, checkboxes, quote bars, rules, table separators. Pipe tables are the exception: they are laid out in virtual text (FR-R13).
+- **Pretty:** it looks native in the active colourscheme, light or dark. Highlight groups link to a `@markup.*` or built-in group, except `MadaTableBorder`, whose foreground is slightly lighter than `Normal`'s background; explicit user overrides win, so no colour setup is needed.
 - [glamour](https://github.com/charmbracelet/glamour)'s dark style is the reference for how each element looks (§7.1). mada departs from it only where glamour changes the layout, because that would break UR-4.
 
 Realised by FR-M1, FR-M5, FR-M10, FR-T2, FR-T6, FR-R1–FR-R21, FR-C3, FR-C6, §7; AT-1, AT-15, AT-18, AT-19, AT-21, AT-22.
@@ -151,13 +151,13 @@ Serves UR-1, UR-3. The visual spec follows glamour's dark style, adapted to a bu
 - **FR-R10 Fenced code blocks.** With `code.hide_fences = true`, the opening and closing fence rows get `conceal_lines = ""`. Content rows get `line_hl_group = MadaCodeBlock`. With `code.show_language = true` and a non-empty info string, the language is shown as right-aligned virtual text `MadaCodeLang` on the first content row. Content characters are never concealed so tree-sitter injection highlighting shows through when a highlighter is active (FR-M10); when no parser is installed for the language, content rows keep the `MadaCodeBlock` background without syntax colours. Unterminated fences (no closing row) render as a block to end of buffer; the parser already reports them that way.
 - **FR-R11 Indented code blocks.** `line_hl_group = MadaCodeBlock` on every row.
 - **FR-R12 Thematic breaks.** The row is overlaid with `rule` repeated to the window text width in `MadaRule`. Only the source characters are overlaid; the remainder is inline virtual text so the rule spans the window.
-- **FR-R13 Pipe tables.** `tables.style = "unicode"`: the table is laid out as a boxed grid drawn in virtual text (`tables.fnl`). Cell content keeps its inline styling (FR-R3–FR-R6, FR-R18, FR-R19): the inline pass runs over the whole table and its marks are projected into styled virtual-text chunks. Cells are trimmed; header cells add `MadaTableHead`; borders `MadaTableBorder`; missing cells are empty; cells beyond the header's count are ignored; `||` with nothing between is a parser error and degrades like any other (NFR-Q2). Alignment from the delimiter row: `:--` left, `:-:` centre, `--:` right, none is left. Widths: each column's natural width is its widest cell; table width is columns plus one space padding each side plus borders. If that exceeds the window text width minus the table's indent, the widest columns shrink first to a common cap (columns already narrower than the cap keep their width) and cells word-wrap: split at single spaces (runs of spaces collapse at the break), breaking mid-word when a word is longer than its column; columns never shrink below 1 cell, so a table with more columns than the window can hold still overflows. Re-laid out on `WinResized` like any other render; with several windows on one buffer the layout follows the window rendered last (marks are per buffer). Virtual lines start with blanks for the table's indent, with `quote` under each `>` of an enclosing block quote.
+- **FR-R13 Pipe tables.** `tables.style = "unicode"`: the table is laid out in virtual text (`tables.fnl`) with only the horizontal separator below the header and vertical separators between columns. There are no top/bottom outer borders, outer vertical borders, or horizontal rules between body rows; absent outer positions are spaces, preserving existing padding and layout widths. Cell content keeps its inline styling (FR-R3–FR-R6, FR-R18, FR-R19): the inline pass runs over the whole table and its marks are projected into styled virtual-text chunks. Cells are trimmed; header cells add `MadaTableHead`; separators use `MadaTableBorder`; missing cells are empty; cells beyond the header's count are ignored; `||` with nothing between is a parser error and degrades like any other (NFR-Q2). Alignment from the delimiter row: `:--` left, `:-:` centre, `--:` right, none is left. Widths: each column's natural width is its widest cell; table width is columns plus the two outer padding positions (spaces) per row plus interior separators. If that exceeds the window text width minus the table's indent, the widest columns shrink first to a common cap (columns already narrower than the cap keep their width) and cells word-wrap: split at single spaces (runs of spaces collapse at the break), breaking mid-word when a word is longer than its column; columns never shrink below 1 cell, so a table with more columns than the window can hold still overflows. Re-laid out on `WinResized` like any other render; with several windows on a buffer the layout follows the window rendered last (marks are per buffer). Virtual lines start with blanks for the table's indent, with `quote` under each `>` of an enclosing block quote.
 
   Each table row's laid-out grid lines are drawn as overlays at window column 0, one per screen row S of the row (1 with `nowrap`; its wrapped height with `wrap`, honouring `linebreak`, `showbreak`, `breakindent`; S = `nvim_win_text_height().all − .fill`). Lines beyond S go to one `virt_lines` mark below the row. Inline-pass marks on non-cursor rows are dropped (`ctx.owned`): a conceal would change wrapping and misplace the overlays.
 
-  Cursor row (FR-AC1): overlays are dropped, so raw source shows in its own screen rows; the lines below keep their count with cells blanked (rule kept), so table height is unchanged. All table marks sit on the row (invariant 2); `CursorMoved` re-renders just the previous and new rows (no table-anchor re-render). `OptionSet` for `wrap`, `linebreak`, `showbreak`, `breakindent` re-renders the window.
+  Cursor row (FR-AC1): overlays are dropped, so raw source shows in its own screen rows; the lines below keep their count with cells blanked (the header separator remains when applicable), so table height is unchanged. All table marks sit on the row (invariant 2); `CursorMoved` re-renders just the previous and new rows (no table-anchor re-render). `OptionSet` for `wrap`, `linebreak`, `showbreak`, `breakindent` re-renders the window.
 
-  Top border stays `virt_lines_above` the header (not visible for row 0 until `<C-y>`). Delimiter row shows the header rule (`├─┼─┤`, or bottom border when there are no body rows); body rows show content lines then the rule after (bottom border after the last).
+  The delimiter row carries the header separator, with spaces at the two outer edges; it is shown even when there are no body rows. Header and body rows have no top/bottom border or between-row horizontal rules. Overflow lines remain below their source row as needed.
 
   Layout cache (changedtick, width, config) unchanged; S and anchor columns computed at emit time. Measured on Neovim 0.12 (one line each, in place): `<C-e>` 1–2 lines per step (`nowrap`: 1), `<C-y>` −1 (or long row height), `j`/`k` move by row heights; no blank rows inside grid at EOF.
 
@@ -243,7 +243,7 @@ Serves UR-5.
 
 Serves UR-4, UR-6.
 
-- **NFR-I1 Row mapping.** The plugin never reorders, joins, splits or wraps rows. Every buffer row keeps its own screen row(s) and line number. Exceptions: rows hidden by `conceal_lines` (code fences with `code.hide_fences`, and Mermaid block fence rows likewise — a Mermaid block's content rows are never hidden), which reappear on the cursor row (FR-AC1) and in raw mode. Pipe tables add virtual lines (top border, and overflow when a source row wraps onto more screen lines than its grid lines); each table row keeps its own screen rows and line number.
+- **NFR-I1 Row mapping.** The plugin never reorders, joins, splits or wraps rows. Every buffer row keeps its own screen row(s) and line number. Exceptions: rows hidden by `conceal_lines` (code fences with `code.hide_fences`, and Mermaid block fence rows likewise — a Mermaid block's content rows are never hidden), which reappear on the cursor row (FR-AC1) and in raw mode. Pipe tables add virtual lines when laid-out cell content exceeds a source row's screen rows; each table row keeps its own screen rows and line number.
 - **NFR-I2 Coexistence.** The plugin sets and clears marks only in its own namespace. Its mark priorities stay below `vim.hl.priorities.diagnostics` (150), so diagnostics and other plugins' marks at default priority draw over its styling.
 
 ### 5.3 Compatibility (NFR-C)
@@ -296,7 +296,7 @@ Serves UR-3, UR-4, UR-5.
 | AT-29 | UR-4 | Diagnostic on a styled span | The diagnostic's highlight is drawn over the plugin's styling |
 | AT-30 | UR-1, UR-3 | Pipe table in a 50-column `wrap` window, including one at EOF | No blank rows inside the grid; `<C-e>`/`<C-y>` scroll through it line by line, never stuck; cursor row raw in place with table height unchanged; toggling `wrap`/`linebreak` re-lays it out |
 | AT-31 | UR-1, UR-3 | `- [ ] a` and `1. [ ] a` | Unordered renders `[ ] a` starting at column 0 (bullet hidden); ordered keeps `1.` before the checkbox |
-| AT-32 | UR-1, UR-3 | Pipe table wider than a 60-column `nowrap` window | Columns fit the window; long cells wrap into virtual lines under their row; borders align; widening the window re-lays it out; cursor row shows raw source, rules stay |
+| AT-32 | UR-1, UR-3 | Pipe table wider than a 60-column `nowrap` window | Columns fit the window; long cells wrap into virtual lines under their row; separators align; widening the window re-lays it out; cursor row shows raw source, header separator stays |
 
 Retired: AT-8 (cache hit), AT-27 (pre-render on open).
 
@@ -319,12 +319,12 @@ glamour's dark style, mapped onto a buffer whose rows cannot move (NFR-I1):
 | Thematic break | Short `--------` line | `─` across the window | — |
 | Link | Text and URL, both styled | Text underlined; brackets and URL hidden (`links.show_url` shows the URL) | Less noise |
 | Image | `Image: alt →` plus URL | `▣ alt` | Shorter |
-| Table | Cells realigned, borders drawn | Aligned, word-wrapped to the window, boxed grid | — |
+| Table | Cells realigned, borders drawn | Aligned, word-wrapped to the window, header rule and column separators | — |
 | Layout | Margins, blank lines between blocks, word wrap | None, except tables (FR-R13) | UR-4 |
 
 ### 7.2 Highlight groups and defaults
 
-All defined with `default = true`.
+Most groups are defined with `default = true`; `MadaTableBorder` derives its foreground from the `Normal` background. Plugin-owned values refresh on setup and `ColorScheme`, while explicit colourscheme or user overrides win.
 
 | Group | Default link / attrs | Used for |
 |---|---|---|
@@ -348,7 +348,7 @@ All defined with `default = true`.
 | `MadaQuoteText` | `@markup.quote` | quote body |
 | `MadaRule` | `@punctuation.special` | thematic break |
 | `MadaTableHead` | `@markup.heading`, bold | header cells |
-| `MadaTableBorder` | `@punctuation.special` | table lines |
+| `MadaTableBorder` | foreground derived from `Normal` background, slightly lighter | table separators; a user highlight override is honored |
 | `MadaComment` | `Comment` | HTML comments, front matter |
 | `MadaDiagramLine` | `NonText` | box-drawing in diagrams |
 | `MadaDiagramText` | `Normal` | labels in diagrams |

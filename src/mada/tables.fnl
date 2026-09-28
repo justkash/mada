@@ -572,18 +572,20 @@ empty) line."
 
 (fn assemble_row [cfg widths padded_cols height]
   "-> list of `height` flat virt_text chunk-lists (one full grid row line
-each): `border.v` + padded cell + `border.v` + …"
+each): blank outer edges, padded cells, and interior vertical separators."
   (let [out []
         bv cfg.tables.border.v]
     (for [k 1 height]
       (let [line []]
-        (push_chunk line bv [:MadaTableBorder])
+        (push_chunk line " " [])
         (for [c 1 (length widths)]
           (push_chunk line " " [])
           (each [_ u (ipairs (. (. padded_cols c) k))]
             (push_chunk line u.text u.groups))
           (push_chunk line " " [])
-          (push_chunk line bv [:MadaTableBorder]))
+          (if (< c (length widths))
+              (push_chunk line bv [:MadaTableBorder])
+              (push_chunk line " " [])))
         (table.insert out line)))
     out))
 
@@ -656,16 +658,8 @@ strings and the prefix chunks, or nil when the header has no cells."
             natural (natural_widths header_units body_units ncols)
             widths (distribute_widths natural avail)
             pchunks (prefix_chunks ctx prefix)
-            top_rule (build_rule ctx.cfg widths ctx.cfg.tables.border.top_left
-                                 ctx.cfg.tables.border.top_cross
-                                 ctx.cfg.tables.border.top_right)
-            mid_rule (build_rule ctx.cfg widths ctx.cfg.tables.border.left
-                                 ctx.cfg.tables.border.cross
-                                 ctx.cfg.tables.border.right)
-            bot_rule (build_rule ctx.cfg widths
-                                 ctx.cfg.tables.border.bottom_left
-                                 ctx.cfg.tables.border.bottom_cross
-                                 ctx.cfg.tables.border.bottom_right)]
+            header_rule (build_rule ctx.cfg widths " "
+                                    ctx.cfg.tables.border.cross " ")]
         {: ncols
          : aligns
          : hrow
@@ -673,9 +667,7 @@ strings and the prefix chunks, or nil when the header has no cells."
          : hline
          : widths
          : pchunks
-         :top_line (rule_line top_rule)
-         :mid_line (rule_line mid_rule)
-         :bot_line (rule_line bot_rule)
+         :header_line (rule_line header_rule)
          : header_units
          : body_units}))))
 
@@ -696,42 +688,37 @@ strings and the prefix chunks, or nil when the header has no cells."
 ;; --- layout: tables.style = unicode (draw-over-source) ----------------------
 
 (fn blank_grid_line [cfg widths]
-  "One grid line of empty cells at `widths` (border, no content): used to pad
+  "One grid line of empty cells at `widths`: used to pad
 a row's display lines up to its S_r screen rows."
   (let [line []
         bv cfg.tables.border.v]
-    (push_chunk line bv [:MadaTableBorder])
+    (push_chunk line " " [])
     (for [c 1 (length widths)]
       (push_chunk line (string.rep " " (+ (. widths c) 2)) [])
-      (push_chunk line bv [:MadaTableBorder]))
+      (if (< c (length widths))
+          (push_chunk line bv [:MadaTableBorder])
+          (push_chunk line " " [])))
     line))
 
 (fn build_grid_layout [ctx g header delim rows]
   "Everything the emit step needs, computed once per changedtick/width/cfg
 (FR-P3 layout cache): the header/delimiter/body rows' already-prefixed grid
-content lines and trailing rule (S_r/anchor columns are window- and cursor-
+content lines and header rule (S_r/anchor columns are window- and cursor-
 dependent, so they are computed fresh at emit time, not cached)."
   (let [(hrow hcol) (header:range)
         (hlines) (row_grid ctx.cfg g.header_units g.widths g.aligns)
         header_content (icollect [_ l (ipairs hlines)] (prefixed g.pchunks l))
         (drow dcol) (delim:range)
-        n (length rows)
-        delim_rule (if (= n 0) g.bot_line g.mid_line)
-        delim_rule_line (prefixed g.pchunks delim_rule)
+        delim_rule_line (prefixed g.pchunks g.header_line)
         blank_line (prefixed g.pchunks (blank_grid_line ctx.cfg g.widths))
         row_entries (icollect [i r (ipairs rows)]
                       (let [(rrow rcol) (r:range)
                             (rlines) (row_grid ctx.cfg (. g.body_units i)
                                                g.widths g.aligns)
                             content (icollect [_ l (ipairs rlines)]
-                                      (prefixed g.pchunks l))
-                            rule (if (< i n) g.mid_line g.bot_line)]
-                        {: rrow
-                         : rcol
-                         : content
-                         :rule_line (prefixed g.pchunks rule)}))]
-    {:top [(prefixed g.pchunks g.top_line)]
-     : hrow
+                                      (prefixed g.pchunks l))]
+                        {: rrow : rcol : content}))]
+    {: hrow
      : hcol
      : header_content
      : drow
@@ -743,34 +730,21 @@ dependent, so they are computed fresh at emit time, not cached)."
 (fn build_d [content rule_line blank_line s_r kind]
   "The lines row `kind` displays, padded with `blank_line` up to `s_r`
 lines: header -> content then blanks; delimiter -> its rule then blanks;
-body -> content, blanks, then its trailing rule (blanks inserted before the
-rule, so the rule always ends up last)."
-  (if (= kind :header)
-      (let [out (icollect [_ l (ipairs content)] l)]
-        (for [i (+ (length out) 1) s_r]
-          (table.insert out blank_line))
-        out)
-      (= kind :delim)
+body -> content then blanks."
+  (if (= kind :delim)
       (let [out [rule_line]]
         (for [i 2 s_r] (table.insert out blank_line))
         out)
       (let [out (icollect [_ l (ipairs content)] l)]
-        (for [i (+ (length out) 1) (- s_r 1)]
+        (for [i (+ (length out) 1) s_r]
           (table.insert out blank_line))
-        (table.insert out rule_line)
         out)))
 
 (fn cursor_tail [tail kind blank_line]
   "The cursor row's overlays are dropped (anti-conceal), so its below-lines
 keep the same count as the laid-out case (no height jump when the cursor
-enters/leaves) but with content replaced by blank grid lines; the trailing
-rule, when it is part of the tail, is kept as-is."
-  (if (= kind :header)
-      (icollect [_ _ (ipairs tail)] blank_line)
-      (= kind :delim)
-      tail
-      (let [n (length tail)]
-        (icollect [i l (ipairs tail)] (if (= i n) l blank_line)))))
+enters/leaves) but with content replaced by blank grid lines."
+  (if (= kind :delim) tail (icollect [_ _ (ipairs tail)] blank_line)))
 
 (fn emit_table_row [ctx marks win row col kind content rule_line blank_line]
   "Overlay + virt_lines marks for one source row (FR-R13): first S_r display
@@ -802,14 +776,12 @@ remaining lines become one `virt_lines` mark below the row."
 
 (fn emit_grid [ctx marks L]
   (let [win ctx.win]
-    (when (in_range ctx L.hrow)
-      (table.insert marks (mark.virt_lines L.hrow L.top CONCEAL true false)))
     (emit_table_row ctx marks win L.hrow L.hcol :header L.header_content nil
                     L.blank_line)
     (emit_table_row ctx marks win L.drow L.dcol :delim [] L.delim_rule_line
                     L.blank_line)
     (each [_ r (ipairs L.rows)]
-      (emit_table_row ctx marks win r.rrow r.rcol :body r.content r.rule_line
+      (emit_table_row ctx marks win r.rrow r.rcol :body r.content nil
                       L.blank_line))))
 
 ;; --- layout cache (FR-P3) ----------------------------------------------------

@@ -1,6 +1,7 @@
 ;; mada.hl - highlight groups (requirements §7.2, architecture §10).
 
 (local M {})
+(var previous-table-border nil)
 
 ;; group -> {:target base-group} or {:target base-group :extra {attrs}}.
 ;; Plain groups link outright; groups with :extra copy the target's resolved
@@ -30,12 +31,21 @@
                :MadaQuoteText {:target "@markup.quote"}
                :MadaRule {:target "@punctuation.special"}
                :MadaTableHead {:target "@markup.heading" :extra {:bold true}}
-               :MadaTableBorder {:target "@punctuation.special"}
                :MadaComment {:target :Comment}
                :MadaDiagramLine {:target :NonText}
                :MadaDiagramText {:target :Normal}
                :MadaDiagramPending {:target :Comment :extra {:italic true}}
                :MadaDiagramError {:target :DiagnosticError}})
+
+(fn table-border-color []
+  "Keep table rules just lighter than the editor background."
+  (let [normal (vim.api.nvim_get_hl 0 {:name :Normal :link false})
+        bg (or normal.bg (if (= vim.o.background :light) 16777215 0))
+        r (math.floor (/ bg 65536))
+        g (% (math.floor (/ bg 256)) 256)
+        b (% bg 256)]
+    (+ (* (math.min 255 (+ r 12)) 65536) (* (math.min 255 (+ g 12)) 256)
+       (math.min 255 (+ b 12)))))
 
 (fn M.define []
   "(Re)define every group, linked to its target or copying the target's
@@ -47,6 +57,14 @@ ColorScheme."
           (vim.api.nvim_set_hl 0 name
                                (vim.tbl_extend :force resolved spec.extra
                                                {:default true})))
-        (vim.api.nvim_set_hl 0 name {:link spec.target :default true}))))
+        (vim.api.nvim_set_hl 0 name {:link spec.target :default true})))
+  (let [current (vim.api.nvim_get_hl 0 {:name :MadaTableBorder})
+        color (table-border-color)]
+    (if (and previous-table-border
+             (vim.deep_equal current {:fg previous-table-border}))
+        ;; Refresh our own derived color even when ColorScheme did not clear it.
+        (vim.api.nvim_set_hl 0 :MadaTableBorder {:fg color})
+        (vim.api.nvim_set_hl 0 :MadaTableBorder {:fg color :default true}))
+    (set previous-table-border color)))
 
 M

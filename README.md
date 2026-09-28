@@ -13,7 +13,7 @@ milestones in architecture §16.
 - Rendered in Normal mode; raw Markdown in Insert, Replace and Select mode.
 - Cursor row always shown raw, even while rendered (anti-conceal).
 - Mermaid fences render as text diagrams via [termaid](https://github.com/fasouto/termaid), asynchronously, in place of the source.
-- Minimal, [glamour](https://github.com/charmbracelet/glamour)-inspired look: no reflow, no margins, no word wrap — rows still map 1:1 to file lines. Pipe tables are the exception: laid out as a boxed grid in virtual text.
+- Minimal, [glamour](https://github.com/charmbracelet/glamour)-inspired look: no reflow, no margins, no word wrap — rows still map 1:1 to file lines. Pipe tables are the exception: laid out in virtual text with a separator below the header and separators between columns, without outer borders or body row lines.
 - Task items hide their bullet; the checkbox takes its place.
 - Never modifies the buffer: text, undo history, `modified` and `changedtick` are untouched.
 
