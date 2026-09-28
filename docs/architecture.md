@@ -173,8 +173,7 @@ on CursorMoved(buf)
 
 | Element | Marks |
 |---|---|
-| ATX H1 | `conceal` marker and space; `hl MadaH1` on text; `line_hl MadaH1Line`; closing `#`s concealed |
-| ATX H2–H6 | `hl MadaHeadingMarker` on marker (`conceal` with `conceal_markers`); `hl MadaH{n}` on text; closing `#`s concealed |
+| ATX H1–H6 | `hl MadaHeadingMarker` on marker (`conceal` with `headings.conceal_markers`); `hl MadaH{n}` on text; closing `#`s concealed |
 | Setext | text row as ATX; underline row `overlay_fit` with `rule` |
 | Emphasis, strong, strike | `conceal` each delimiter; `hl` on content at 110 + depth |
 | Code span | `conceal` delimiters; `hl MadaCode` on content |

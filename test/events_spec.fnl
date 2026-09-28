@@ -133,6 +133,9 @@ failure)."
 
 (fn test-at5 []
   (with-child (fn [ch]
+                ;; Exercise anti-conceal with a concealed heading marker.
+                (exec ch
+                      "require('mada').setup({ headings = { conceal_markers = true } })")
                 (edit ch :test/fixtures/headings.md)
                 ;; Cursor starts on row 0 ("# Heading 1"). Move off, then back onto
                 ;; it, so the move under test is a deliberate move off a heading row.

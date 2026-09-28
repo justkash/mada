@@ -15,16 +15,6 @@ return { {
   }, {
     col = 0,
     opts = {
-      invalidate = true,
-      line_hl_group = "MadaH1Line",
-      priority = 90,
-      right_gravity = true,
-      undo_restore = false
-    },
-    row = 0
-  }, {
-    col = 0,
-    opts = {
       end_col = 19,
       end_right_gravity = false,
       end_row = 1,

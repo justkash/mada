@@ -20,6 +20,7 @@
 ;; in-process via test/helpers.fnl.
 
 (local h (require :helpers))
+(local mada (require :mada))
 (local config (require :mada.config))
 
 ;; AT-25's in-process `i` round trip still touches real Insert mode for one
@@ -40,13 +41,13 @@
 (local heading_lines [:intro "" "# Heading" "" :para])
 
 (fn test_AT4_cursor_row_shows_raw []
-  (config.setup {})
+  (mada.setup {:headings {:conceal_markers true}})
   (let [buf (scratch_md heading_lines)]
-    (h.eq :Heading (h.screen_row 3 7))
+    (h.eq " Heading" (h.screen_row 3 8))
     (h.feed :3G)
     (h.eq "# Heading" (h.screen_row 3 9))
     (h.feed :gg)
-    (h.eq :Heading (h.screen_row 3 7))))
+    (h.eq " Heading" (h.screen_row 3 8))))
 
 (fn test_AT25_cursor_and_topline_preserved []
   (config.setup {})

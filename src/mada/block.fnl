@@ -69,8 +69,7 @@ counted from `start_col` (0-based), or nil if there is none."
     (and s (+ start_col s -1))))
 
 (fn heading [ctx marks name heading_node]
-  (let [level (. h-levels name)
-        row (heading_node:range)
+  (let [row (heading_node:range)
         line (or (. ctx.lines (+ (- row ctx.a) 1)) "")
         marker (heading_node:named_child 0)
         text_node (heading_node:named_child 1)
@@ -79,17 +78,10 @@ counted from `start_col` (0-based), or nil if there is none."
                                  (values row mec row mec))
         close_col (closing_hashes line tsc)
         content_end (or close_col (length line))]
-    (if (= level 1)
-        (do
-          (table.insert marks (mark.conceal row msc tsc CONCEAL))
-          (table.insert marks (mark.hl row tsc content_end :MadaH1 TEXT))
-          (table.insert marks (mark.line_hl row :MadaH1Line BG)))
-        (do
-          (if ctx.cfg.headings.conceal_markers
-              (table.insert marks (mark.conceal row msc mec CONCEAL))
-              (table.insert marks (mark.hl row msc mec :MadaHeadingMarker TEXT)))
-          (table.insert marks (mark.hl row tsc content_end (. h-groups name)
-                                       TEXT))))
+    (if ctx.cfg.headings.conceal_markers
+        (table.insert marks (mark.conceal row msc mec CONCEAL))
+        (table.insert marks (mark.hl row msc mec :MadaHeadingMarker TEXT)))
+    (table.insert marks (mark.hl row tsc content_end (. h-groups name) TEXT))
     (when close_col
       (table.insert marks (mark.conceal row close_col (length line) CONCEAL)))))
 
@@ -107,9 +99,7 @@ counted from `start_col` (0-based), or nil if there is none."
         (for [r (math.max first ctx.a) (math.min last ctx.b)]
           (let [line (line_at ctx r)]
             (when line
-              (table.insert marks (mark.hl r 0 (length line) text_group TEXT))
-              (when (= level 1)
-                (table.insert marks (mark.line_hl r :MadaH1Line BG))))))))
+              (table.insert marks (mark.hl r 0 (length line) text_group TEXT)))))))
     (when underline
       (let [(urow ucol _uer uec) (underline:range)]
         (when (line_at ctx urow)

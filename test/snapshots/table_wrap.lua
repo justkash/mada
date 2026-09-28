@@ -1,21 +1,13 @@
 return { {
     col = 0,
     opts = {
-      conceal = "",
-      end_col = 2,
+      end_col = 1,
       end_right_gravity = false,
       end_row = 0,
+      hl_eol = false,
+      hl_group = "MadaHeadingMarker",
       invalidate = true,
-      right_gravity = true,
-      undo_restore = false
-    },
-    row = 0
-  }, {
-    col = 0,
-    opts = {
-      invalidate = true,
-      line_hl_group = "MadaH1Line",
-      priority = 90,
+      priority = 100,
       right_gravity = true,
       undo_restore = false
     },
@@ -274,19 +266,6 @@ return { {
   }, {
     col = 0,
     opts = {
-      invalidate = true,
-      priority = 120,
-      right_gravity = true,
-      undo_restore = false,
-      virt_lines = { { { "│", "MadaQuote" }, { " " }, { "└──────────────────────────┴───┘", "MadaTableBorder" } } },
-      virt_lines_above = false,
-      virt_lines_leftcol = false,
-      virt_lines_overflow = "trunc"
-    },
-    row = 10
-  }, {
-    col = 0,
-    opts = {
       end_col = 1,
       end_right_gravity = false,
       end_row = 10,
@@ -298,6 +277,19 @@ return { {
       virt_text_hide = false,
       virt_text_pos = "overlay",
       virt_text_repeat_linebreak = false
+    },
+    row = 10
+  }, {
+    col = 0,
+    opts = {
+      invalidate = true,
+      priority = 120,
+      right_gravity = true,
+      undo_restore = false,
+      virt_lines = { { { "│", "MadaQuote" }, { " " }, { "└──────────────────────────┴───┘", "MadaTableBorder" } } },
+      virt_lines_above = false,
+      virt_lines_leftcol = false,
+      virt_lines_overflow = "trunc"
     },
     row = 10
   }, {

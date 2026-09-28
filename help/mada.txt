@@ -23,7 +23,8 @@ mode, raw while editing. It never writes to the buffer -- text, undo history
 and 'modified' stay exactly as they would without the plugin.
 
 Rendered mode hides delimiters that carry no meaning once styled (emphasis
-markers, backticks, link brackets, code fences, the H1 `#`) and turns
+markers, backticks, link brackets, code fences, and heading markers when
+`headings.conceal_markers` is enabled) and turns
 structural markers into glyphs (bullets, checkboxes, quote bars, rules,
 table borders). Mermaid fenced blocks are drawn as text diagrams in place of
 their source.
@@ -118,7 +119,7 @@ viewport_margin                                  *mada-option-viewport_margin*
 
 headings.conceal_markers                *mada-option-headings.conceal_markers*
     boolean (default `false`)
-    Also hide the `##`..`######` markers on H2-H6.
+    Hide ATX heading markers (`#` through `######`) on H1-H6.
 
 bullets                                                  *mada-option-bullets*
     list of string (default `{"•", "◦", "▪"}`)
@@ -337,12 +338,11 @@ needed:
     Group                Default                         Used for
     -------------------------------------------------------------
     MadaH1               @markup.heading.1, bold         H1 text
-    MadaH1Line           ColorColumn                     H1 row background
-    MadaH2               @markup.heading.2               H2 text
-    MadaH3               @markup.heading.3               H3 text
-    MadaH4               @markup.heading.4               H4 text
-    MadaH5               @markup.heading.5               H5 text
-    MadaH6               @markup.heading.6               H6 text
+    MadaH2               @markup.heading.2, bold         H2 text
+    MadaH3               @markup.heading.3, bold         H3 text
+    MadaH4               @markup.heading.4, bold         H4 text
+    MadaH5               @markup.heading.5, bold         H5 text
+    MadaH6               @markup.heading.6, bold         H6 text
     MadaHeadingMarker    @markup.heading                 marker; underline
     MadaEmph             @markup.italic                  emphasis
     MadaStrong           @markup.strong                  strong emphasis

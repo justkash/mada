@@ -18,7 +18,7 @@ Stated from the user's side. Each one has acceptance criteria and lists the requ
 
 - The first screen is drawn already rendered; a raw frame is never shown first. Mermaid diagrams that are not drawn yet arrive shortly after (UR-3).
 - It works with no configuration beyond installing the plugin.
-- **Minimal:** styling uses colour, weight and glyph substitution only. No margins, padding rows, boxes or reflow are added. Delimiters that carry no meaning once styled are hidden: emphasis markers, backticks, link brackets and destinations, the H1 `#`, code fences. Structural markers become glyphs: bullets, checkboxes, quote bars, rules, table borders. Pipe tables are the exception: they are laid out as a boxed grid in virtual text (FR-R13).
+- **Minimal:** styling uses colour, weight and glyph substitution only. No margins, padding rows, boxes or reflow are added. Delimiters that carry no meaning once styled are hidden: emphasis markers, backticks, link brackets and destinations, heading markers when `headings.conceal_markers` is enabled, code fences. Structural markers become glyphs: bullets, checkboxes, quote bars, rules, table borders. Pipe tables are the exception: they are laid out as a boxed grid in virtual text (FR-R13).
 - **Pretty:** it looks native in the active colourscheme, light or dark. Every highlight group links to a `@markup.*` or built-in group, so no colour setup is needed.
 - [glamour](https://github.com/charmbracelet/glamour)'s dark style is the reference for how each element looks (§7.1). mada departs from it only where glamour changes the layout, because that would break UR-4.
 
@@ -139,7 +139,7 @@ Serves UR-2, UR-4. Because the cursor row always shows its stored text, Normal-m
 
 Serves UR-1, UR-3. The visual spec follows glamour's dark style, adapted to a buffer whose rows cannot move; §7.1 maps each element and lists the deviations. Highlight group names are in §7.2. "Hidden" means concealed with `conceal = ""` unless stated.
 
-- **FR-R1 ATX headings.** H1: `# ` marker hidden; text highlighted `MadaH1`; whole row `line_hl_group = MadaH1Line`. H2–H6: marker kept and highlighted `MadaHeadingMarker`; text highlighted `MadaH2`…`MadaH6`. With `headings.conceal_markers = true`, H2–H6 markers are hidden too. Closing `#`s (`## x ##`) are hidden.
+- **FR-R1 ATX headings.** H1–H6 markers are highlighted `MadaHeadingMarker`; text is highlighted with `MadaH1`…`MadaH6` in bold. With `headings.conceal_markers = true`, markers are hidden for all heading levels. Closing `#`s (`## x ##`) are hidden.
 - **FR-R2 Setext headings.** Text row as H1/H2 per FR-R1; the underline row is overlaid with `rule` glyphs across the text width in `MadaHeadingMarker`.
 - **FR-R3 Emphasis.** `*x*`/`_x_` delimiters hidden, text `MadaEmph`. `**x**`/`__x__` → `MadaStrong`. `~~x~~` → `MadaStrike`. Nested combinations apply all groups (extmark priority increases with nesting depth).
 - **FR-R4 Code spans.** Backtick delimiters hidden; content `MadaCode`. Multi-backtick delimiters are handled by hiding the whole delimiter node.
@@ -308,8 +308,8 @@ glamour's dark style, mapped onto a buffer whose rows cannot move (NFR-I1):
 
 | Element | glamour (dark) | mada | Why it differs |
 |---|---|---|---|
-| H1 | `#` removed; bold text on a coloured badge | `#` hidden; bold heading colour on a full-row band | No padding cells are inserted |
-| H2–H6 | `##` prefix kept; bold, coloured | Marker kept (hidden with `headings.conceal_markers`); heading colour | — |
+| H1 | `#` removed; bold text on a coloured badge | Marker kept (hidden with `headings.conceal_markers`); bold heading colour | No padding cells are inserted |
+| H2–H6 | `##` prefix kept; bold, coloured | Marker kept (hidden with `headings.conceal_markers`); bold heading colour | — |
 | Emphasis, strong, strikethrough | Italic, bold, crossed out; delimiters removed | Same | — |
 | Code span | Coloured, on a background, padded | `@markup.raw`; backticks hidden | No padding |
 | Code block | Indented by a margin; syntax colours | Row background; fences hidden; language label; tree-sitter colours | No margin |
@@ -329,9 +329,8 @@ All defined with `default = true`.
 | Group | Default link / attrs | Used for |
 |---|---|---|
 | `MadaH1` | `@markup.heading.1`, bold | H1 text |
-| `MadaH1Line` | `ColorColumn` | H1 row background |
-| `MadaH2`…`MadaH6` | `@markup.heading.2`…`.6` | heading text |
-| `MadaHeadingMarker` | `@markup.heading` | `##` markers, setext underline |
+| `MadaH2`…`MadaH6` | `@markup.heading.2`…`.6`, bold | heading text |
+| `MadaHeadingMarker` | `@markup.heading` | heading markers, setext underline |
 | `MadaEmph` | `@markup.italic` | emphasis |
 | `MadaStrong` | `@markup.strong` | strong |
 | `MadaStrike` | `@markup.strikethrough` | strikethrough |

@@ -6,12 +6,11 @@
 ;; Plain groups link outright; groups with :extra copy the target's resolved
 ;; attributes and add the extra attribute, still `default = true`.
 (local groups {:MadaH1 {:target "@markup.heading.1" :extra {:bold true}}
-               :MadaH1Line {:target :ColorColumn}
-               :MadaH2 {:target "@markup.heading.2"}
-               :MadaH3 {:target "@markup.heading.3"}
-               :MadaH4 {:target "@markup.heading.4"}
-               :MadaH5 {:target "@markup.heading.5"}
-               :MadaH6 {:target "@markup.heading.6"}
+               :MadaH2 {:target "@markup.heading.2" :extra {:bold true}}
+               :MadaH3 {:target "@markup.heading.3" :extra {:bold true}}
+               :MadaH4 {:target "@markup.heading.4" :extra {:bold true}}
+               :MadaH5 {:target "@markup.heading.5" :extra {:bold true}}
+               :MadaH6 {:target "@markup.heading.6" :extra {:bold true}}
                :MadaHeadingMarker {:target "@markup.heading"}
                :MadaEmph {:target "@markup.italic"}
                :MadaStrong {:target "@markup.strong"}

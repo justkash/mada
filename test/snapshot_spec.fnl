@@ -20,8 +20,8 @@ starting with mermaid (mermaid fixtures get their own spec)."
 (fn render_fixture [name]
   "Open test/fixtures/<name>.md under a fixed, deterministic setup: 80
 columns, a window tall enough to cover every row (viewport_margin defaults
-to 20 on top), anti_conceal off. Returns buf."
-  (mada.setup {:anti_conceal false})
+to 20 on top), anti_conceal off, Mermaid backend off. Returns buf."
+  (mada.setup {:anti_conceal false :mermaid {:placement :off}})
   (set vim.o.columns 80)
   (let [path (.. :test/fixtures/ name :.md)
         nlines (length (vim.fn.readfile path))]
@@ -103,11 +103,30 @@ highlight."
       (check (has-mada-bullet? marks 1)
              "row 1 (1. [ ] x): the ordered marker should keep its MadaBullet highlight"))))
 
+(fn test-h1-marker-setting-and-no-background []
+  (mada.setup {:anti_conceal false :headings {:conceal_markers true}})
+  (let [buf (scratch-md ["# One" "## Two" "" :Setext "======"])]
+    (mada.render buf)
+    (let [marks (h.marks buf)
+          h1-marker (mark-at marks 0 0)
+          h2-marker (mark-at marks 1 0)]
+      (check (and h1-marker h2-marker)
+             "ATX H1 and H2 should both have marker marks")
+      (h.eq "" h1-marker.opts.conceal "H1 marker should follow conceal_markers")
+      (h.eq "" h2-marker.opts.conceal "H2 marker should follow conceal_markers")
+      (each [_ m (ipairs marks)]
+        (check (not= m.opts.line_hl_group :MadaH1Line)
+               "ATX and setext H1 should not add a row background")))))
+
 (local fixture_tests (icollect [_ name (ipairs (fixture_names))]
                        [name (make_test name)]))
 
 (table.insert fixture_tests
               ["task bullet (FR-R7/FR-R8): `- [ ] x` conceals [0,2) with no MadaBullet mark; `1. [ ] x` keeps MadaBullet"
                test-task-bullet-hidden-ordered-bullet-kept])
+
+(table.insert fixture_tests
+              ["H1 follows conceal_markers and has no row background"
+               test-h1-marker-setting-and-no-background])
 
 fixture_tests
