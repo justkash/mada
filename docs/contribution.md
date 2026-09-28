@@ -30,3 +30,7 @@ Layout and Fennel-for-LuaJIT rules: architecture §2. Tests: architecture
 Rendered by ohimark, separate from the Vim help under `help/`. `README.md`
 is the home page; navigation mirrors `docs/`. New top-level Markdown must
 be added to the fileset in `nix/docs.nix` to appear in `packages.docs`.
+The live `docs` and `watchdocs` commands discover Markdown in the working tree and
+exclude `test/`. Those files are isolated fixtures: their snapshots and line-specific
+specs rely on exact content and placement, and several exercise parser boundaries.
+They are test inputs rather than standalone docs pages.

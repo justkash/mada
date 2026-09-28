@@ -84,7 +84,7 @@ let
       # that directory has to keep its identity across rebuilds.
       mkdir -p "$state/site"
       rm -rf "$state/next"
-      ${lib.getExe ohimark} --out "$state/next" --root README.md "$repo"
+      ${lib.getExe ohimark} --out "$state/next" --root README.md --exclude 'test/**' "$repo"
       find "$state/site" -mindepth 1 -delete
       cp -R "$state/next/." "$state/site/"
       rm -rf "$state/next"
