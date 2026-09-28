@@ -1,0 +1,58 @@
+#!/bin/sh
+# test/bin/fake-termaid - POSIX sh stand-in for termaid (architecture §15).
+# Reads stdin (the diagram source, discarded), then prints $FAKE_OUT if it
+# is set, else a small canned box diagram that echoes the --width/--ascii
+# arguments so tests can see them. Sleeps $FAKE_SLEEP seconds (if set),
+# prints $FAKE_ERR to stderr (if set), and exits $FAKE_CODE (default 0).
+
+width=""
+ascii="no"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --width)
+      shift
+      width="$1"
+      ;;
+    --ascii)
+      ascii="yes"
+      ;;
+  esac
+  shift
+done
+
+# Consume stdin (the mermaid source): kept, not just discarded, so a source
+# containing the literal marker "BREAK" can simulate broken syntax (AT-28)
+# without needing to vary $FAKE_CODE per keystroke from the test.
+input="$(cat)"
+
+if [ -n "$FAKE_SLEEP" ]; then
+  sleep "$FAKE_SLEEP"
+fi
+
+code="$FAKE_CODE"
+if [ -z "$code" ]; then
+  case "$input" in
+    *BREAK*)
+      code=1
+      : "${FAKE_ERR:=bad syntax}"
+      ;;
+    *)
+      code=0
+      ;;
+  esac
+fi
+
+if [ -n "$FAKE_OUT" ]; then
+  printf '%s\n' "$FAKE_OUT"
+elif [ "$code" = 0 ]; then
+  printf '+----------------+\n'
+  printf '| width=%s ascii=%s\n' "$width" "$ascii"
+  printf '+----------------+\n'
+fi
+
+if [ -n "$FAKE_ERR" ]; then
+  printf '%s\n' "$FAKE_ERR" >&2
+fi
+
+exit "$code"

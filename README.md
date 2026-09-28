@@ -3,7 +3,8 @@
 `mada` (short for MArkDown Artist) renders Markdown buffers in place: styled
 in Normal mode, raw in Insert mode, Mermaid fences as diagrams.
 
-Pre-release, not yet functional. Design: [docs/requirements.md](docs/requirements.md),
+v0.1.0. Design:
+[docs/requirements.md](docs/requirements.md),
 [docs/architecture.md](docs/architecture.md). Implementation follows the
 milestones in architecture §16.
 
@@ -12,7 +13,8 @@ milestones in architecture §16.
 - Rendered in Normal mode; raw Markdown in Insert, Replace and Select mode.
 - Cursor row always shown raw, even while rendered (anti-conceal).
 - Mermaid fences render as text diagrams via [termaid](https://github.com/fasouto/termaid), asynchronously, in place of the source.
-- Minimal, [glamour](https://github.com/charmbracelet/glamour)-inspired look: no reflow, no margins, no word wrap — rows still map 1:1 to file lines.
+- Minimal, [glamour](https://github.com/charmbracelet/glamour)-inspired look: no reflow, no margins, no word wrap — rows still map 1:1 to file lines. Pipe tables are the exception: laid out as a boxed grid in virtual text.
+- Task items hide their bullet; the checkbox takes its place.
 - Never modifies the buffer: text, undo history, `modified` and `changedtick` are untouched.
 
 ```mermaid
@@ -31,6 +33,10 @@ stateDiagram-v2
 | Build | Nix, or Fennel, to compile `src/` to Lua |
 
 Stays off when render-markdown.nvim or markview.nvim is also loaded (FR-M9).
+
+This flake packages termaid: `nix build .#termaid`, and `nix develop` puts
+it on `$PATH`. `nix run` (a Neovim with mada installed and set up) has it
+on `$PATH` too, so its Mermaid demo blocks render.
 
 ## Install
 
@@ -87,7 +93,8 @@ require("mada").setup({
   raw_modes = { "i", "R", "s", "S", "\19" },  -- first char of mode(1); "\19" is CTRL-S
   anti_conceal = true,
   ascii = false,                              -- ASCII glyphs, and termaid --ascii
-  treesitter = { highlight = "auto" },        -- "auto" | true | false
+  treesitter = { highlight = false, auto_max_lines = 5000 },
+                                               -- highlight: "auto" | true | false
   viewport_margin = 20,
   headings = { conceal_markers = false },
   bullets = { "•", "◦", "▪" },
@@ -99,7 +106,11 @@ require("mada").setup({
   links = { conceal = true, show_url = false },
   tables = {
     style = "unicode",                        -- "unicode" | "off"
-    border = { v = "│", h = "─", cross = "┼", left = "├", right = "┤" },
+    border = {
+      v = "│", h = "─", cross = "┼", left = "├", right = "┤",
+      top_left = "┌", top_cross = "┬", top_right = "┐",
+      bottom_left = "└", bottom_cross = "┴", bottom_right = "┘",
+    },
   },
   mermaid = {
     placement = "replace",                    -- "replace" | "off"
@@ -113,7 +124,31 @@ require("mada").setup({
 })
 ```
 
+Code blocks always keep their background band and language label; syntax
+colours inside them need a tree-sitter highlighter active. mada stops any
+highlighter by default — including the one Neovim 0.12 starts itself for
+markdown buffers — because its conceals under `conceallevel=2` made
+redraws 6-7x slower; set `treesitter.highlight = "auto"` or `true` to keep
+one running and get syntax colours back.
+
 Glyphs, highlight groups and their defaults: requirements §7.
+
+## Usage
+
+`:Mada {enable|disable|toggle|render|clear}`, with `!` on `render` to
+re-run every Mermaid diagram in the buffer, including failed ones:
+
+| Subcommand | Effect |
+|---|---|
+| `enable` | Attach the current buffer. |
+| `disable` | Detach: clear marks, restore window options, remove autocommands. |
+| `toggle` | `enable` if disabled, `disable` if enabled. |
+| `render` | Re-render every window showing the buffer. |
+| `render!` | `render`, plus re-run every Mermaid diagram, including failed ones. |
+| `clear` | Clear marks without detaching. |
+
+Same operations from Lua: `require("mada").{enable,disable,toggle,render,
+clear}(buf?)`. Full reference: `:help mada`.
 
 ## Docs
 

@@ -1,46 +1,469 @@
 *mada.txt*  Render Markdown in place
 
 ==============================================================================
-CONTENTS                                                              *mada*
+CONTENTS                                                                *mada*
 
-    1. Introduction .....................................|mada-introduction|
-    2. Setup .....................................................|mada-setup|
-    3. Lua API .................................................|mada-lua-api|
+    1. Introduction .......................................|mada-introduction|
+    2. Requirements .......................................|mada-requirements|
+    3. Setup .....................................................|mada-setup|
+    4. Options .................................................|mada-options|
+    5. Commands ...............................................|mada-commands|
+    6. Lua API .................................................|mada-lua-api|
+    7. Events ...................................................|mada-events|
+    8. Highlight groups .....................................|mada-highlights|
+    9. Mermaid .................................................|mada-mermaid|
+    10. Health ..................................................|mada-health|
+    11. Limitations ........................................|mada-limitations|
 
 ==============================================================================
-1. Introduction                                        *mada-introduction*
+1. Introduction                                            *mada-introduction*
 
-mada renders Markdown buffers in place: styled in Normal mode, raw in
-Insert mode, Mermaid fences as diagrams.
+mada renders Markdown buffers in place using extmarks: styled in Normal
+mode, raw while editing. It never writes to the buffer -- text, undo history
+and 'modified' stay exactly as they would without the plugin.
 
-Pre-release: nothing is implemented yet. See README.md,
-docs/requirements.md and docs/architecture.md in the source tree.
+Rendered mode hides delimiters that carry no meaning once styled (emphasis
+markers, backticks, link brackets, code fences, the H1 `#`) and turns
+structural markers into glyphs (bullets, checkboxes, quote bars, rules,
+table borders). Mermaid fenced blocks are drawn as text diagrams in place of
+their source.
+
+Raw mode, entered in Insert, Replace and Select mode, shows the buffer
+exactly as stored: no marks, no diagrams, nothing concealed. The row under
+the cursor is always raw, even in rendered mode, so editing never shifts
+text you cannot see (anti-conceal).
 
 ==============================================================================
-2. Setup                                                      *mada-setup*
+2. Requirements                                            *mada-requirements*
 
-Zero-config: mada attaches on `FileType markdown` without calling
-`setup()`. To change any option, call `setup()` once: >lua
+- Neovim >= 0.11 (needs `conceal_lines`, range parsing, `vim.system`).
+- termaid, an external program, to draw Mermaid diagrams. Without it,
+Mermaid blocks render as ordinary fenced code blocks and one WARN
+notification is shown once per session (|mada-mermaid|).
+
+Install termaid with `pip install termaid`, `pipx install termaid`, or run
+it on demand with `uvx termaid` by pointing `mermaid.cmd` at it: >lua
+
+    require("mada").setup({
+      mermaid = { cmd = { "uvx", "termaid" } },
+    })
+<
+This repo's flake also packages it: `nix build .#termaid`, and `nix develop`
+puts it on PATH; the `nix run` demo has it too.
+
+==============================================================================
+3. Setup                                                          *mada-setup*
+
+Zero configuration: mada attaches on `FileType markdown` without ever
+calling `setup()`. Call `setup()` once to change any option; later calls
+replace the config and re-render every attached buffer: >lua
 
     require("mada").setup({
       ascii = true,
     })
 <
-`setup()` deep-merges its argument over the defaults and may be called
-more than once; the last call wins. See README.md for the full list of
-default keys.
+See |mada-options| for every key, type and default.
 
 ==============================================================================
-3. Lua API                                                  *mada-lua-api*
+4. Options                                                      *mada-options*
 
-                                                            *mada.setup()*
+Passed as a (possibly partial) table to `setup()`; unset keys keep their
+default. An invalid key or value raises an error naming the key path
+(`setup({opts})`, |mada.setup()|).
+
+enabled                                                  *mada-option-enabled*
+    boolean (default `true`)
+    Whether the plugin attaches to buffers at all.
+
+filetypes                                              *mada-option-filetypes*
+    list of string (default `{"markdown"}`)
+    Filetypes mada attaches to on `FileType`.
+
+max_file_lines                                    *mada-option-max_file_lines*
+    number (default `20000`)
+    Buffers over this many lines are not attached.
+
+raw_modes                                              *mada-option-raw_modes*
+    list of string (default `{"i","R","s","S","\19"}`)
+    First char of `mode(1)` that means raw display; `"\19"` is CTRL-S.
+
+anti_conceal                                        *mada-option-anti_conceal*
+    boolean (default `true`)
+    Strip shifting marks from the cursor row in rendered mode.
+
+ascii                                                      *mada-option-ascii*
+    boolean (default `false`)
+    ASCII glyph fallbacks everywhere, and `--ascii` to termaid. Also
+    swaps `mermaid.pending_text`'s default to `"rendering diagram..."`.
+
+treesitter.highlight                        *mada-option-treesitter.highlight*
+    "auto" | true | false (default `false`)
+    Whether a tree-sitter highlighter runs for the buffer. `false` (the
+    default): mada stops any highlighter running on the buffer, including
+    the one Neovim's own `ftplugin/markdown.lua` starts by default, and
+    forces `syntax` off while attached; its `conceal_lines` under
+    `conceallevel=2` made redraws 6-7x slower (OQ-4). `"auto"` keeps or
+    starts one while the buffer has at most `treesitter.auto_max_lines`
+    lines, stopping it above that. `true` always ensures one runs,
+    uncapped. Code blocks lose tree-sitter syntax colours under `false`.
+
+treesitter.auto_max_lines            *mada-option-treesitter.auto_max_lines*
+    number (default `5000`)
+    With `treesitter.highlight = "auto"`, the line count above which mada
+    stops (or does not start) a highlighter of its own.
+
+viewport_margin                                  *mada-option-viewport_margin*
+    number (default `20`)
+    Rows rendered beyond the visible window on each side.
+
+headings.conceal_markers                *mada-option-headings.conceal_markers*
+    boolean (default `false`)
+    Also hide the `##`..`######` markers on H2-H6.
+
+bullets                                                  *mada-option-bullets*
+    list of string (default `{"•", "◦", "▪"}`)
+    Unordered list bullet glyph per nesting level, cycling.
+
+checkbox.todo                                      *mada-option-checkbox.todo*
+    string (default `"[ ]"`)
+    Glyph shown for an unchecked task item: for an unordered item it
+    takes the hidden bullet's place, for an ordered item it follows the
+    number (FR-R7, FR-R8).
+
+checkbox.done                                      *mada-option-checkbox.done*
+    string (default `"[✓]"`)
+    Glyph shown for a checked task item; see `checkbox.todo`.
+
+quote                                                      *mada-option-quote*
+    string (default `"│"`, a vertical bar)
+    Glyph overlaid on each block quote `>` marker.
+
+rule                                                        *mada-option-rule*
+    string (default `"─"`, a horizontal bar)
+    Glyph the thematic break row is filled with.
+
+image_icon                                            *mada-option-image_icon*
+    string (default `"▣ "`)
+    Prefix shown before an image's alt text.
+
+code.hide_fences                                *mada-option-code.hide_fences*
+    boolean (default `true`)
+    Conceal a fenced code block's opening and closing fence rows.
+
+code.show_language                            *mada-option-code.show_language*
+    boolean (default `true`)
+    Show the fence's language as virtual text on its first content row.
+
+links.conceal                                      *mada-option-links.conceal*
+    boolean (default `true`)
+    Hide link brackets and the destination/title.
+
+links.show_url                                    *mada-option-links.show_url*
+    boolean (default `false`)
+    Append the URL as inline virtual text after the link text.
+
+tables.style                                        *mada-option-tables.style*
+    "unicode" | "off" (default "unicode")
+    `"unicode"` lays the table out as a boxed grid in virtual text
+    (FR-R13): grid lines drawn as overlays over each row's own screen
+    rows; nothing is hidden. `"off"` applies highlights only, no layout.
+
+tables.border.v                                  *mada-option-tables.border.v*
+    string (default `"│"`)
+    Vertical cell separator glyph.
+
+tables.border.h                                  *mada-option-tables.border.h*
+    string (default `"─"`)
+    Horizontal glyph in the delimiter row.
+
+tables.border.cross                          *mada-option-tables.border.cross*
+    string (default `"┼"`)
+    Interior crossing glyph in the delimiter row.
+
+tables.border.left                            *mada-option-tables.border.left*
+    string (default `"├"`)
+    Left-edge glyph in the delimiter row.
+
+tables.border.right                          *mada-option-tables.border.right*
+    string (default `"┤"`)
+    Right-edge glyph in the delimiter row.
+
+tables.border.top_left                    *mada-option-tables.border.top_left*
+    string (default `"┌"`)
+    Top-left corner glyph of the grid.
+
+tables.border.top_cross                  *mada-option-tables.border.top_cross*
+    string (default `"┬"`)
+    Top-edge crossing glyph, above each interior column boundary.
+
+tables.border.top_right                  *mada-option-tables.border.top_right*
+    string (default `"┐"`)
+    Top-right corner glyph of the grid.
+
+tables.border.bottom_left              *mada-option-tables.border.bottom_left*
+    string (default `"└"`)
+    Bottom-left corner glyph of the grid.
+
+tables.border.bottom_cross            *mada-option-tables.border.bottom_cross*
+    string (default `"┴"`)
+    Bottom-edge crossing glyph, below each interior column boundary.
+
+tables.border.bottom_right            *mada-option-tables.border.bottom_right*
+    string (default `"┘"`)
+    Bottom-right corner glyph of the grid.
+
+mermaid.placement                              *mada-option-mermaid.placement*
+    "replace" | "off" (default "replace")
+    How Mermaid blocks are shown; `"off"` renders them as plain code blocks.
+
+mermaid.cmd                                          *mada-option-mermaid.cmd*
+    string or list of string (default `{"termaid"}`)
+    termaid executable as argv, e.g. `{"uvx", "termaid"}`.
+
+mermaid.args                                        *mada-option-mermaid.args*
+    list of string (default `{}`)
+    Extra arguments appended to the termaid invocation.
+
+mermaid.width_bucket                        *mada-option-mermaid.width_bucket*
+    number (default `10`)
+    Diagram width is rounded down to a multiple of this.
+
+mermaid.timeout_ms                            *mada-option-mermaid.timeout_ms*
+    number (default `5000`)
+    Backend job timeout, in milliseconds.
+
+mermaid.pending_text                        *mada-option-mermaid.pending_text*
+    string (default `"rendering diagram…"`)
+    Shown while a diagram job runs; empty string hides the row.
+
+debug                                                      *mada-option-debug*
+    boolean (default `false`)
+    Append render and job timings to `stdpath("log")/mada.log`.
+
+==============================================================================
+5. Commands                                                    *mada-commands*
+
+:Mada {enable|disable|toggle|render|clear}                             *:Mada*
+
+Subcommand names complete with <Tab>.
+
+    enable
+        Attach the current buffer, clearing a prior `:Mada disable`.
+    disable
+        Detach: clear marks, restore window options, undo mada's
+        highlighter action (stop one it started, or restart one it had
+        stopped), remove autocommands.
+    toggle
+        `enable` if disabled, `disable` if enabled.
+    render
+        Re-render every window showing the buffer.
+    render!
+        Like `render`, and also clear every block's cached diagram and
+        error, so every Mermaid diagram (including failed ones) re-runs.
+    clear
+        Clear marks without detaching.
+
+==============================================================================
+6. Lua API                                                      *mada-lua-api*
+
+All {buf} arguments default to the current buffer (0).
+
+*mada.setup()*
 setup({opts})
-    Initialise mada with user {opts}, see |mada-setup|.
+    Merge {opts} over the defaults, validate, and (re)render every attached
+    buffer (|mada-options|). Raises on an invalid key or value, naming the
+    key path. May be called more than once; the last call wins.
 
-                                                          *mada.version()*
+*mada.version()*
 version()
-    Return the installed plugin version as a string, or "dev" when
-    built without Nix.
+    Return the installed plugin version as a string ("dev" outside the Nix
+    build).
+
+*mada.enable()*
+enable({buf})
+    Attach {buf}, clearing a prior `:Mada disable`.
+
+*mada.disable()*
+disable({buf})
+    Detach {buf}: clear marks, restore window options, undo mada's
+    highlighter action (stop one it started, or restart one it had
+    stopped), detach autocommands.
+
+*mada.toggle()*
+toggle({buf})
+    `enable()` if disabled, `disable()` if enabled.
+
+*mada.render()*
+render({buf}, {opts})
+    Re-render every window showing {buf}. `opts.force = true` re-runs every
+    Mermaid diagram, including failed ones.
+
+*mada.clear()*
+clear({buf})
+    Clear {buf}'s marks without detaching.
+
+*mada.is_enabled()*
+is_enabled({buf})
+    Whether {buf} is currently attached, as a boolean.
+
+==============================================================================
+7. Events                                                        *mada-events*
+
+mada fires two |User| autocommand patterns:
+
+*MadaRendered*
+    After each render pass. `data = {buf, rows}`, `rows` being the `{a, b}`
+    0-based inclusive row range just rendered.
+
+*MadaDiagram*
+    After a Mermaid job is applied. `data = {buf, row, status}`, `row` the
+    block's opening fence row, `status` `"ok"` or `"error"`.
+
+Example: >lua
+
+    vim.api.nvim_create_autocmd("User", {
+      pattern = "MadaDiagram",
+      callback = function(ev) print(vim.inspect(ev.data)) end,
+    })
+<
+
+==============================================================================
+8. Highlight groups                                          *mada-highlights*
+
+Every group is defined with `default = true` (a colourscheme or user `:hi`
+wins) and links to a `@markup.*` or built-in group, so no colour setup is
+needed:
+
+    Group                Default                         Used for
+    -------------------------------------------------------------
+    MadaH1               @markup.heading.1, bold         H1 text
+    MadaH1Line           ColorColumn                     H1 row background
+    MadaH2               @markup.heading.2               H2 text
+    MadaH3               @markup.heading.3               H3 text
+    MadaH4               @markup.heading.4               H4 text
+    MadaH5               @markup.heading.5               H5 text
+    MadaH6               @markup.heading.6               H6 text
+    MadaHeadingMarker    @markup.heading                 marker; underline
+    MadaEmph             @markup.italic                  emphasis
+    MadaStrong           @markup.strong                  strong emphasis
+    MadaStrike           @markup.strikethrough           strikethrough
+    MadaCode             @markup.raw                     code spans
+    MadaCodeBlock        ColorColumn                     code block background
+    MadaCodeLang         Comment                         language label
+    MadaLink             @markup.link.label, underline   link text
+    MadaUrl              @markup.link.url                URLs
+    MadaImage            @markup.link                    image placeholder
+    MadaBullet           @markup.list                    list markers
+    MadaTaskTodo         @markup.list.unchecked          `[ ]` checkbox
+    MadaTaskDone         @markup.list.checked            `[x]` checkbox
+    MadaTaskDoneText     Comment                         done task text
+    MadaQuote            @markup.quote                   `>` marker glyph
+    MadaQuoteText        @markup.quote                   quote body text
+    MadaRule             @punctuation.special            thematic break
+    MadaTableHead        @markup.heading, bold           header cells
+    MadaTableBorder      @punctuation.special            table borders
+    MadaComment          Comment                         comments/front matter
+    MadaDiagramLine      NonText                         box-drawing chars
+    MadaDiagramText      Normal                          diagram labels
+    MadaDiagramPending   Comment, italic                 pending row
+    MadaDiagramError     DiagnosticError                 error row
+
+==============================================================================
+9. Mermaid                                                      *mada-mermaid*
+
+Each Mermaid block (a fenced code block whose language is `mermaid`) keeps
+its own state, keyed by its source, width bucket and `ascii`:
+
+    Pending
+        when: in view, no diagram yet
+        shows: code block + `mermaid.pending_text` row
+    Drawn
+        when: job completed ok
+        shows: the diagram
+    Updating
+        when: key changed since Drawn, new job running
+        shows: the previous diagram, unchanged, until the new one arrives
+    Failed
+        when: job errored, no previous diagram
+        shows: code block + one error row
+    DrawnFailed
+        when: job errored after a key change, previous diagram exists
+        shows: the previous diagram + one error row below it
+
+Fence rows are hidden like an ordinary code block's (`code.hide_fences`).
+A block always keeps its latest diagram (FR-D17): editing the source,
+crossing a width bucket, or toggling `ascii` never clears what is on screen
+until the new job's result is applied, so a block never flicks to pending
+and back. The diagram is drawn as overlays over its content rows; a
+diagram shorter than its content leaves blank rows, and a taller one
+overflows into virtual lines below the first content row. The diagram is
+hidden while the cursor is in its block, which then shows the whole
+source (fence rows stay hidden except the cursor's own row); the block's
+height stays the same.
+
+Errors: a non-zero exit or timeout records the first stderr line (or
+`"timeout"`) as the block's error for that key. It is not retried until the
+key changes or `:Mada render!` is run.
+
+`:Mada render!` clears every block's error and forgets its diagram's key
+(the diagram itself stays on screen until the re-run completes), so the next
+render re-spawns every block, including ones that previously failed.
+
+If termaid is not on $PATH, every Mermaid block renders as an ordinary
+fenced code block, and one WARN notification is shown once per session.
+
+See |mada-health|.
+
+==============================================================================
+10. Health                                                       *mada-health*
+
+`:checkhealth mada` reports:
+
+- Neovim version (error if below 0.11).
+- Whether the `markdown` and `markdown_inline` parsers load (error).
+- termaid found via `exepath(mermaid.cmd[1])`, plus a smoke render of
+`graph LR; A-->B` within 3s (error).
+- Python 3 present, when `mermaid.cmd[1]` is `"termaid"` (info).
+- Conflicting Markdown renderers loaded, e.g. render-markdown.nvim or
+markview.nvim (warn).
+- Rendered windows whose `conceallevel`/`concealcursor` drifted from
+what mada set (warn).
+- Tree-sitter highlighter status for the current buffer, and whether
+mada or the user started it (info).
+- Render timings for the session's last 100 renders (mixes non-edit and
+edit renders): p95 and max, warning when p95 is over 25ms or max is
+over 40ms (NFR-P10).
+- A one-line config summary (info).
+
+==============================================================================
+11. Limitations                                             *mada-limitations*
+
+- Mermaid diagram width comes from the window that triggered the render;
+other windows showing the same buffer may clip (FR-D16).
+- `diff` mode is not special-cased; hidden rows can misalign a diff.
+- Any tree-sitter highlighter left running on the buffer (`"auto"` under
+the limit, or `true`) applies its own runtime conceals, from the bundled
+`highlights.scm`, independently of mada's own marks: it hides the
+brackets of any `[text]`, even with no matching reference definition,
+which mada leaves raw; it also hides fence rows even with
+`code.hide_fences = false`. Both are revealed on the cursor row, like
+mada's own conceals. Inherent to the runtime query file;
+`treesitter.highlight = false` (the default) stops any highlighter,
+including the one Neovim itself starts, at the cost of code-block
+syntax colours.
+- Screen-row motions (`gj`, `gk`, `H`, `M`, `L`, scroll counts) count hidden
+rows differently than without the plugin (accepted deviation, UR-4).
+- With several windows on one buffer, a table's grid layout (FR-R13)
+follows the window rendered last; marks are per buffer, not per window.
+- A table's virtual lines inside a list or block quote carry only blanks
+and `quote` glyphs as their prefix, not the list marker.
+- A table whose header is the buffer's first line shows no top border
+until the view scrolls up (`<C-y>`); `virt_lines_above` on row 0 does
+not draw until then.
+- A table row whose raw text wraps onto more screen lines than its grid
+lines is padded with blank grid lines.
+- With the tree-sitter highlighter enabled, its conceals on table rows
+can misplace grid lines.
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:
