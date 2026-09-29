@@ -35,7 +35,8 @@
                :MadaBullet {:target "@markup.list"}
                :MadaTaskTodo {:target "@markup.list.unchecked"}
                :MadaTaskDone {:target "@markup.list.checked"}
-               :MadaTaskDoneText {:target :Comment}
+               :MadaTaskDoneText {:target :Comment
+                                  :extra {:italic false :strikethrough true}}
                :MadaQuote {:target "@markup.quote"}
                :MadaQuoteText {:target "@markup.quote"}
                :MadaRule {:target "@punctuation.special"}

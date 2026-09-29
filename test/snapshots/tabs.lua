@@ -71,20 +71,6 @@ return { {
     },
     row = 6
   }, {
-    col = 0,
-    opts = {
-      end_col = 28,
-      end_right_gravity = false,
-      end_row = 6,
-      hl_eol = false,
-      hl_group = "MadaTaskDoneText",
-      invalidate = true,
-      priority = 100,
-      right_gravity = true,
-      undo_restore = false
-    },
-    row = 6
-  }, {
     col = 2,
     opts = {
       end_col = 5,
@@ -98,6 +84,20 @@ return { {
       virt_text_hide = false,
       virt_text_pos = "overlay",
       virt_text_repeat_linebreak = false
+    },
+    row = 6
+  }, {
+    col = 6,
+    opts = {
+      end_col = 28,
+      end_right_gravity = false,
+      end_row = 6,
+      hl_eol = false,
+      hl_group = "MadaTaskDoneText",
+      invalidate = true,
+      priority = 100,
+      right_gravity = true,
+      undo_restore = false
     },
     row = 6
   } }

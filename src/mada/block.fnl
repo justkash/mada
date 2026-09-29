@@ -165,17 +165,33 @@ nil when `node`'s item is not a task item."
 (fn task_done_item [ctx marks node]
   "`node` is the list_item of a checked task (the query captures it directly
 as `@task.done.item`, so this reaches only items overlapping ctx.a..ctx.b:
-no whole-tree walk, invariant 2 handled per row instead): `hl
-MadaTaskDoneText` on every row of its own paragraph (not a nested block's)
-that falls in ctx.a..ctx.b."
+no whole-tree walk, invariant 2 handled per row instead). Highlight only
+the paragraph's inline text: the paragraph can extend over a nested list's
+prefix, while its inline child ends after the task's own text."
   (let [para (find_child node :paragraph)]
     (when para
-      (let [(first last) (node_rows para)]
-        (for [r (math.max first ctx.a) (math.min last ctx.b)]
-          (let [pline (line_at ctx r)]
-            (when pline
-              (table.insert marks
-                            (mark.hl r 0 (length pline) :MadaTaskDoneText TEXT)))))))))
+      (each [_ inline (ipairs (children_of_type para :inline))]
+        (let [(first first_col end_row end_col) (inline:range)
+              (_ last) (node_rows inline)
+              prefixes {}]
+          (each [child (inline:iter_children)]
+            (when (= (child:type) :block_continuation)
+              (let [(row _ er col) (child:range)]
+                (when (= row er)
+                  (tset prefixes row (math.max (or (. prefixes row) 0) col))))))
+          (for [r (math.max first ctx.a) (math.min last ctx.b)]
+            (let [pline (line_at ctx r)]
+              (when pline
+                (let [start_col (if (= r first) first_col (or (. prefixes r) 0))
+                      stop_col (if (= r end_row) end_col (length pline))
+                      span (pline:sub (+ start_col 1) stop_col)
+                      first_text (span:find "%S")]
+                  (when first_text
+                    (let [trailing (span:find "%s*$")]
+                      (table.insert marks
+                                    (mark.hl r (+ start_col first_text -1)
+                                             (+ start_col trailing -1)
+                                             :MadaTaskDoneText TEXT)))))))))))))
 
 ;; --- block quotes (FR-R9) ------------------------------------------------
 

@@ -80,6 +80,74 @@ bullets, `block.fnl`'s `bullet`)."
           (when (= (. vt 2) :MadaBullet) (set found true))))))
   found)
 
+(fn done-text-spans [marks]
+  "[row, start column, end column] for each struck task-text mark. Keeping
+these exact bounds checks that list, checkbox, quote, and indentation bytes
+are not struck while paragraph text is."
+  (let [spans []]
+    (each [_ m (ipairs marks)]
+      (when (= m.opts.hl_group :MadaTaskDoneText)
+        (table.insert spans [m.row m.col m.opts.end_col])))
+    (table.sort spans (fn [a b]
+                        (if (= (. a 1) (. b 1))
+                            (< (. a 2) (. b 2))
+                            (< (. a 1) (. b 1)))))
+    spans))
+
+(fn test-done-task-text-bounds []
+  (mada.setup {:anti_conceal false})
+  (let [lines ["- [x] done *emphasis*"
+               "  - [ ] open child"
+               "  - [x] done child"
+               ""
+               "1. [x] ordered done"]
+        buf (scratch-md lines)]
+    (mada.render buf)
+    (let [marks (h.marks buf)]
+      (h.eq (done-text-spans marks)
+            [[0 6 (length (. lines 1))]
+             [2 8 (length (. lines 3))]
+             [4 7 (length (. lines 5))]]
+            "checked tasks should strike their own text, excluding list markers, checkboxes, and an open child")
+      (var emph false)
+      (each [_ m (ipairs marks)]
+        (when (and (= m.row 0) (= m.col 12) (= m.opts.end_col 20)
+                   (= m.opts.hl_group :MadaEmph))
+          (set emph true)))
+      (check emph
+             "emphasis inside done task text should keep its inline highlight"))))
+
+(fn test-done-task-continuation-bounds []
+  (mada.setup {:anti_conceal false})
+  (let [lines ["- [x] first line"
+               "  second line"
+               "lazy third line"
+               ""
+               "> - [x] quoted first"
+               ">   quoted second"]
+        buf (scratch-md lines)]
+    (mada.render buf)
+    (h.eq (done-text-spans (h.marks buf))
+          [[0 6 (length (. lines 1))]
+           [1 2 (length (. lines 2))]
+           [2 0 (length (. lines 3))]
+           [4 8 (length (. lines 5))]
+           [5 4 (length (. lines 6))]]
+          "continuations should strike paragraph text without indentation or quote prefixes")
+    ;; A partial redraw must find the same owning task, even when the task
+    ;; marker is outside the requested range.
+    (let [state (require :mada.state)
+          render (require :mada.render)]
+      (vim.api.nvim_buf_clear_namespace buf (state.ns) 0 -1)
+      (render.render buf (vim.api.nvim_get_current_win) 1 2)
+      (h.eq (done-text-spans (h.marks buf))
+            [[1 2 (length (. lines 2))] [2 0 (length (. lines 3))]]
+            "partial redraw of plain and lazy continuations should match the full render")
+      (vim.api.nvim_buf_clear_namespace buf (state.ns) 0 -1)
+      (render.render buf (vim.api.nvim_get_current_win) 5 5)
+      (h.eq (done-text-spans (h.marks buf)) [[5 4 (length (. lines 6))]]
+            "partial redraw of a quoted continuation should match the full render"))))
+
 (fn test-task-bullet-hidden-ordered-bullet-kept []
   "A task item's checkbox takes the bullet's place: `- [ ] x` conceals the
 whole dash marker (bullet + its trailing space) instead of overlaying a
@@ -128,5 +196,13 @@ highlight."
 (table.insert fixture_tests
               ["H1 follows conceal_markers and has no row background"
                test-h1-marker-setting-and-no-background])
+
+(table.insert fixture_tests
+              ["checked task text excludes list and checkbox prefixes and open children"
+               test-done-task-text-bounds])
+
+(table.insert fixture_tests
+              ["checked task multiline and quote text excludes structural prefixes"
+               test-done-task-continuation-bounds])
 
 fixture_tests

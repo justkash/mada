@@ -364,7 +364,7 @@ user `:hi` overrides win. No colour setup is needed:
     MadaBullet           @markup.list                    list markers
     MadaTaskTodo         @markup.list.unchecked          `[ ]` checkbox
     MadaTaskDone         @markup.list.checked            `[x]` checkbox
-    MadaTaskDoneText     Comment                         done task text
+    MadaTaskDoneText     Comment, strikethrough          done task text (no italic)
     MadaQuote            @markup.quote                   `>` marker glyph
     MadaQuoteText        @markup.quote                   quote body text
     MadaRule             @punctuation.special            thematic break
