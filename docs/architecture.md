@@ -118,7 +118,7 @@ Window options: `conceallevel = 2`, `concealcursor = anti_conceal and "" or "nvc
 | `FileType` | buffer | detach if the filetype is no longer configured |
 | `BufUnload`, `BufWipeout` | buffer | detach |
 
-`attach(buf)`: skip if attached, disabled, over `max_file_lines` (notify only on `:Mada enable`, FR-M2) or another renderer is loaded (FR-M9). Create state and augroup `mada.<buf>`, apply the FR-M10 highlighter action (stop, start, or leave alone, depending on `treesitter.highlight` and what's already running), then `enter_rendered` unless the mode is raw. Because Neovim's runtime `ftplugin/markdown.lua` can start its own highlighter on `FileType` after mada's handler runs, the FR-M10 check repeats once via `vim.schedule`. `FileType` runs before the window's first draw, so the first paint is rendered (FR-T6). Buffer-scoped autocommands plus one global augroup keep FR-M11: no `*I` events, no `nvim_buf_attach`.
+`attach(buf)`: skip if attached, disabled, over `max_file_lines` (notify only on `:Mada enable`, FR-M2) or another renderer is loaded (FR-M9). Create state and augroup `mada.<buf>`, apply the FR-M10 highlighter action (stop, start, or leave alone, depending on `treesitter.highlight` and what's already running), then `enter_rendered` unless the mode is raw. When a highlighter runs, its fence-conceal query metadata is filtered while syntax and injection captures remain active; `code.hide_fences` controls ordinary code fence text. Because Neovim's runtime `ftplugin/markdown.lua` can start its own highlighter on `FileType` after mada's handler runs, the FR-M10 check repeats once via `vim.schedule`. `FileType` runs before the window's first draw, so the first paint is rendered (FR-T6). Buffer-scoped autocommands plus one global augroup keep FR-M11: no `*I` events, no `nvim_buf_attach`.
 
 ## 5. Render
 
@@ -185,8 +185,8 @@ on CursorMoved(buf)
 | Ordered marker | `hl MadaBullet` |
 | Task | unordered: checkbox `overlay_fit` at the concealed marker's column; ordered: checkbox `overlay_fit` over `[ ]`/`[x]` after the number; done → `hl MadaTaskDoneText` on item text |
 | Block quote | `overlay` of `quote` on each `>`; `hl MadaQuoteText` on content |
-| Fenced code | `conceal_line` on fences (`hide_fences`); `line_hl MadaCodeBlock` on content rows; `right_align` language on the first content row |
-| Indented code | `line_hl MadaCodeBlock` per row |
+| Fenced code | With `hide_fences`, conceal fence/info text but retain shaded fence rows as top/bottom padding; `line_hl MadaCodeBlock` on content rows with one space of horizontal padding after any quote/list prefix; `right_align` language inside the block |
+| Indented code | `line_hl MadaCodeBlock` per row with one space of horizontal padding after structural prefixes/indent and one shaded row above and below the block |
 | Thematic break | `overlay` of `rule` over the source + `inline` `rule` to the window width |
 | Table | `tables.fnl` (FR-R13), single path: rows never concealed or hidden; header separator and column separators drawn as overlays at window column 0, one per screen row S of that row; lines beyond S in `virt_lines` mark; inline marks on non-cursor rows dropped; cursor row raw in place, lines below keep count with cells blanked and header separator retained when applicable; no outer borders or body row rules |
 | HTML comment | `hl MadaComment` per row |
@@ -292,20 +292,21 @@ stateDiagram-v2
 `mermaid.collect(ctx)`, per block meeting `a..b`:
 
 ```text
-if placement == "off" or termaid is missing: fenced-code marks (FR-R10); done
+if placement == "off" or termaid is missing: ordinary fenced-code marks (FR-R10); done
 s = blocks[anchor]
 if s.diagram?.key ≠ key and not s.job and s.err?.key ≠ key: spawn(s, key, source)
-fence rows: conceal_lines (like code.hide_fences), always
 if not s.diagram:
-  content rows: line_hl MadaCodeBlock; pending/error row as virt_lines below the LAST content row
+  ordinary code marks: fence/info text concealed, fence rows retained as padding
+  pending/error row as virt_lines below the LAST content row
 else:
+  fence rows: conceal_lines
   if ctx.cursor not in block: overlay diagram onto the content rows (virt_text_win_col = 0, padded to window width), one per row
   else: show whole source (fence rows stay hidden except the cursor's own row, anti-conceal), no overlays
   blank overlay rows if diagram shorter than content
   virt_lines below the FIRST content row: diagram overflow + error row if s.err?.key == key
 ```
 
-Block row rendering: fence rows are hidden with `conceal_lines`, like an ordinary code fence (`code.hide_fences`) — Neovim's own tree-sitter highlighter would hide them anyway, so nothing may ever be anchored on a fence row. Diagram is drawn as `virt_text_win_col = 0` overlays over the block's CONTENT rows only, padded to the window width; row 0 of the diagram maps to the first content row. If the diagram has fewer rows than the content, the remaining rows receive blank overlays. Diagram rows beyond the content rows are attached as one `virt_lines` mark below the FIRST content row, so the diagram stays contiguous and the virtual lines always sit between two visible rows (a `virt_lines` mark directly above a hidden fence row made Neovim's scroll-up snap back, §13). When the cursor is inside the block, all overlays are dropped, showing the whole source (fence rows stay hidden except the cursor's own row, via anti-conceal); blank `virt_lines` below the first content row stay, keeping the block height equal to the drawn case. Pending/error state with no diagram: ordinary code-block marks (fences hidden per `code.hide_fences`) plus the pending/error row as `virt_lines` below the LAST content row.
+Block row rendering: ordinary code marks conceal fence/info text when `code.hide_fences` is enabled, but keep those source rows shaded as the block's top and bottom padding. A drawn Mermaid diagram hides its fence rows with `conceal_lines` so nothing may be anchored on a fence row. It draws as `virt_text_win_col = 0` overlays over the block's CONTENT rows only, padded to the window width; row 0 of the diagram maps to the first content row. If the diagram has fewer rows than the content, the remaining rows receive blank overlays. Diagram rows beyond the content rows are attached as one `virt_lines` mark below the FIRST content row, so the diagram stays contiguous and the virtual lines always sit between two visible rows (a `virt_lines` mark directly above a hidden fence row made Neovim's scroll-up snap back, §13). When the cursor is inside the block, all overlays are dropped, showing the whole source (fence rows stay hidden except the cursor's own row, via anti-conceal); blank `virt_lines` below the first content row stay, keeping the block height equal to the drawn case. Pending/error state with no diagram: ordinary code-block marks (fence text hidden per `code.hide_fences`, source rows retained) plus the pending/error row as `virt_lines` below the LAST content row.
 
 ### 8.3 Jobs
 
@@ -377,7 +378,7 @@ Defaults (README's table must match, FR-C3):
 
 ## 10. Highlights
 
-`hl.define()` runs on `setup` and `ColorScheme`: linked groups use `nvim_set_hl(0, group, {link = target, default = true})`; a group that adds an attribute (bold, underline, italic) copies the target's resolved attributes from `nvim_get_hl(0, {name = target, link = false})` and adds it, still with `default = true`. `MadaTableBorder` derives its foreground from the `Normal` background, slightly lighter. Plugin-owned values refresh on setup and `ColorScheme`; explicit user overrides win.
+`hl.define()` runs on `setup` and `ColorScheme`: linked groups use `nvim_set_hl(0, group, {link = target, default = true})`; a group that adds an attribute (bold, underline, italic) copies the target's resolved attributes from `nvim_get_hl(0, {name = target, link = false})` and adds it, still with `default = true`. `MadaCodeBlock` uses a slightly darker `Normal` background; `MadaTableBorder` derives its foreground from the `Normal` background, slightly lighter. Plugin-owned values refresh on setup and `ColorScheme`; explicit user overrides win.
 
 ## 11. Health
 
@@ -416,7 +417,7 @@ Remaining table cost is spread across tree-sitter row walks, per-run scans, and 
 
 **Mermaid scroll-up fix (2026-09-26):** large virt_lines blocks hanging below a concealed row caused Neovim's scroll-up to stutter and jump: Neovim stepped through the hidden row as topfill, then cursor-visibility correction snapped topline back (endless loop). The design was changed: block rows are no longer hidden; diagrams are overlays over the block's own rows; pending/error lines are virt_lines below the fence instead of above it. Measured: scroll-up reaches the top reliably (G then C-y in 714 steps median, 0.7 ms/step; with hidden rows: stuck at line 81 after 2,000 steps).
 
-**Mermaid placement refinement (2026-09-28):** the all-overlay design (nothing hidden) turned out to still cut off real diagrams and could still snap on scroll-up. With Neovim's runtime highlighter also running (`filetype plugin on`, the real default), the first diagram in docs/architecture.md lost its first line and 22 overflow lines, and a down-then-up `<C-y>` round trip got stuck after 291 steps: some overflow `virt_lines` sat directly above a hidden fence row (the highlighter conceals fence rows independently of mada). The design was refined: fence rows are hidden again by mada itself (`conceal_lines`, like `code.hide_fences`) — nothing may ever be anchored on them regardless of whether a highlighter also hides them — and the diagram overlays only the block's content rows, with overflow anchored as one `virt_lines` mark below the FIRST content row, always between two visible rows. Measured: the first diagram of architecture.md now draws complete; a down-then-up `<C-y>` round trip reaches the top in 751 steps with every screen matching a fresh render.
+**Mermaid placement refinement (2026-09-28):** the all-overlay design (nothing hidden) turned out to still cut off real diagrams and could still snap on scroll-up. With Neovim's runtime highlighter also running (`filetype plugin on`, the real default), the first diagram in docs/architecture.md lost its first line and 22 overflow lines, and a down-then-up `<C-y>` round trip got stuck after 291 steps: some overflow `virt_lines` sat directly above a hidden fence row (the highlighter conceals fence rows independently of mada). The design was refined: drawn Mermaid fences are hidden with `conceal_lines` so nothing may be anchored on them, unlike ordinary code blocks whose shaded fence rows remain visible as padding; diagram overlays cover only content rows, with overflow anchored as one `virt_lines` mark below the FIRST content row, always between two visible rows. Measured: the first diagram of architecture.md now draws complete; a down-then-up `<C-y>` round trip reaches the top in 751 steps with every screen matching a fresh render.
 
 **Tried and reverted:** limiting the first render to visible rows only — no measurable gain, because the root parse tree-sitter builds is whole-document regardless of the range passed to `parse()`.
 

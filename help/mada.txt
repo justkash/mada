@@ -149,11 +149,14 @@ image_icon                                            *mada-option-image_icon*
 
 code.hide_fences                                *mada-option-code.hide_fences*
     boolean (default `true`)
-    Conceal a fenced code block's opening and closing fence rows.
+    Hide the opening and closing fence text. Their rows remain as shaded
+    blank padding above and below the block.
 
 code.show_language                            *mada-option-code.show_language*
     boolean (default `true`)
     Show the fence's language as virtual text on its first content row.
+    Code text has one space of horizontal padding and one shaded row above
+    and below the block.
 
 links.conceal                                      *mada-option-links.conceal*
     boolean (default `true`)
@@ -333,9 +336,9 @@ Example: >lua
 8. Highlight groups                                          *mada-highlights*
 
 Most groups are defined with `default = true` and link to a `@markup.*` or
-built-in group. `MadaTableBorder` instead uses a foreground slightly lighter
-than the `Normal` background; explicit colourscheme or user `:hi` overrides
-win. No colour setup is needed:
+built-in group. `MadaCodeBlock` uses a slightly darker `Normal` background;
+`MadaTableBorder` uses a slightly lighter foreground. Explicit colourscheme or
+user `:hi` overrides win. No colour setup is needed:
 
     Group                Default                         Used for
     -------------------------------------------------------------
@@ -350,7 +353,7 @@ win. No colour setup is needed:
     MadaStrong           @markup.strong                  strong emphasis
     MadaStrike           @markup.strikethrough           strikethrough
     MadaCode             @markup.raw                     code spans
-    MadaCodeBlock        ColorColumn                     code block background
+    MadaCodeBlock        Normal (slightly darker)        code block background
     MadaCodeLang         Comment                         language label
     MadaLink             @markup.link.label, underline   link text
     MadaUrl              @markup.link.url                URLs
@@ -444,12 +447,11 @@ over 40ms (NFR-P10).
 other windows showing the same buffer may clip (FR-D16).
 - `diff` mode is not special-cased; hidden rows can misalign a diff.
 - Any tree-sitter highlighter left running on the buffer (`"auto"` under
-the limit, or `true`) applies its own runtime conceals, from the bundled
-`highlights.scm`, independently of mada's own marks: it hides the
-brackets of any `[text]`, even with no matching reference definition,
-which mada leaves raw; it also hides fence rows even with
-`code.hide_fences = false`. Both are revealed on the cursor row, like
-mada's own conceals. Inherent to the runtime query file;
+the limit, or `true`) applies runtime conceals from the bundled
+`highlights.scm`, independently of mada's marks. It hides the brackets of
+any `[text]`, even with no matching reference definition, which mada leaves
+raw. Those conceals are revealed on the cursor row, like mada's own.
+`code.hide_fences` still controls fence text while a highlighter is active;
 `treesitter.highlight = false` (the default) stops any highlighter,
 including the one Neovim itself starts, at the cost of code-block
 syntax colours.

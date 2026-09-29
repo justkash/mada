@@ -13,9 +13,10 @@
 ;; content rows' own screen-row count (T) attach as `virt_lines` below the
 ;; *first content row* (keeps the diagram contiguous on screen -- a hidden
 ;; row directly behind scrollable filler used to make Neovim's topline snap
-;; back down, OQ-1). The fence rows themselves are always hidden by mada
-;; (`conceal_line`, cursor-position-independent, same as an ordinary fenced
-;; code block's `code.hide_fences`): this is what keeps the diagram's
+;; back down, OQ-1). A drawn diagram hides fence rows with `conceal_line`;
+;; ordinary Mermaid fallback (off/pending/error) retains shaded fence rows as
+;; code-block padding, concealing only their text when `code.hide_fences` is
+;; enabled. This keeps a diagram's
 ;; overlays/overflow off a row a runtime tree-sitter highlighter might also
 ;; be concealing (Neovim 0.12's `ftplugin/markdown.lua` starts one on every
 ;; markdown buffer by default, `filetype plugin on`) and what keeps the
@@ -48,15 +49,30 @@
 ;; ---- shared mark helpers ----
 
 (fn virt-lines-mark [marks]
-  "The first mark carrying `virt_lines` (there is at most one Mermaid
-attach-row mark per render), or nil."
+  "The first Mermaid mark carrying `virt_lines` (diagram, pending, or error),
+ignoring code-block background padding, or nil."
   (var found nil)
   (each [_ m (ipairs marks)]
-    (when (and (not found) m.opts.virt_lines) (set found m)))
+    (when (and (not found) m.opts.virt_lines)
+      (var is-mermaid (= m.opts.hl_group :MadaDiagramLine))
+      (each [_ line (ipairs m.opts.virt_lines)]
+        (each [_ chunk (ipairs line)]
+          (let [group (. chunk 2)]
+            (when (or (= group :MadaDiagramLine) (= group :MadaDiagramText)
+                      (= group :MadaDiagramPending) (= group :MadaDiagramError))
+              (set is-mermaid true)))))
+      (when is-mermaid (set found m))))
   found)
 
 (fn conceal-line-rows [marks]
   (icollect [_ m (ipairs marks)] (if m.opts.conceal_lines m.row nil)))
+
+(fn conceal-text-rows [marks]
+  (icollect [_ m (ipairs marks)] (if m.opts.conceal m.row nil)))
+
+(fn code-band-rows [marks]
+  (icollect [_ m (ipairs marks)]
+    (if (= m.opts.line_hl_group :MadaCodeBlock) m.row nil)))
 
 (fn kind-of [opts]
   "mada.mermaid draws its diagram as `virt_text_win_col = 0` overlays
@@ -336,14 +352,21 @@ process; \"\" means unset (the script treats empty the same as unset)."
   (set-env {})
   (setup-mermaid {:mermaid {:placement :off}})
   (let [buf (scratch-md (mermaid-lines ["graph LR" "  A --> B"]))]
-    (let [ms (h.marks buf)]
+    (let [ms (h.marks buf)
+          (open close) (block-rows buf)
+          shaded (code-band-rows ms)
+          hidden-text (conceal-text-rows ms)]
       (check (= nil (virt-lines-mark ms)) "off: no diagram virt_lines")
-      ;; code.hide_fences (default true) conceals the fence rows of any
-      ;; ordinary fenced code block, mermaid or not; that is unrelated to
-      ;; mermaid.placement. Only the *content* rows must carry no
-      ;; conceal_lines (they get line_hl MadaCodeBlock instead).
-      (check (= 2 (length (conceal-line-rows ms)))
-             "off: only the two fence rows should carry conceal_lines")
+      ;; Fallback uses the ordinary code-block presentation: fence text is
+      ;; concealed, while the retained source rows form shaded padding.
+      (check (= 0 (length (conceal-line-rows ms)))
+             "off: ordinary code fence rows remain visible as shaded padding")
+      (check (and (vim.tbl_contains shaded open)
+                  (vim.tbl_contains shaded close))
+             "off: both fence rows have the code-block background")
+      (check (and (vim.tbl_contains hidden-text open)
+                  (vim.tbl_contains hidden-text close))
+             "off: code.hide_fences conceals both fence texts")
       (check (> (length (icollect [_ m (ipairs ms)]
                           (if (= m.opts.line_hl_group :MadaCodeBlock) m.row)))
                 0)
@@ -565,9 +588,18 @@ process; \"\" means unset (the script treats empty the same as unset)."
   (let [buf (scratch-md (mermaid-lines ["graph LR" "  A --> B"]))]
     (let [ms (h.marks buf)
           (_osr csr) (block-rows buf)
-          vl (virt-lines-mark ms)]
-      (check (= 2 (length (conceal-line-rows ms)))
-             "pending: an ordinary fenced code block (code.hide_fences) hides both fence rows")
+          vl (virt-lines-mark ms)
+          (open close) (block-rows buf)
+          shaded (code-band-rows ms)
+          hidden-text (conceal-text-rows ms)]
+      (check (= 0 (length (conceal-line-rows ms)))
+             "pending: ordinary code fence rows remain visible as shaded padding")
+      (check (and (vim.tbl_contains shaded open)
+                  (vim.tbl_contains shaded close))
+             "pending: both fence rows have the code-block background")
+      (check (and (vim.tbl_contains hidden-text open)
+                  (vim.tbl_contains hidden-text close))
+             "pending: code.hide_fences conceals both fence texts")
       (check (not= vl nil) "pending: expected the pending line")
       (check (= vl.row (- csr 1))
              "pending: the pending line should attach below the last content row, never the closing fence")
@@ -773,7 +805,7 @@ return t.all - t.fill" [win a b]))
                     (let [ms (child-marks ch buf)
                           h-in (child-win-height ch win osr csr)]
                       (check (= 2 (length (conceal-line-rows ms)))
-                             "AT-9: the fence rows stay hidden (like an ordinary fenced code block) while the cursor is inside the block; only the content rows show raw source")
+                             "AT-9: the drawn diagram's fence rows stay hidden while the cursor is inside the block; only the content rows show raw source")
                       (check (= 0 (length (overlays-of ms)))
                              "AT-9: no diagram overlays should be drawn while the cursor is inside the block (anti-conceal, whole source, no diagram)")
                       (check (= h-out h-in)

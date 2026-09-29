@@ -6,6 +6,7 @@
 (local tables (require :mada.tables))
 (local inline (require :mada.inline))
 (local hl (require :mada.hl))
+(local highlighter (require :mada.highlighter))
 (local log (require :mada.log))
 
 (local M {})
@@ -214,6 +215,7 @@ before mada attached (stop one mada started, or restart one mada stopped -
 FR-M10, FR-M11), detach autocommands and release state (FR-M7, FR-M8)."
   (let [st (state.get buf)]
     (when st
+      (highlighter.restore buf)
       (vim.api.nvim_buf_clear_namespace buf (state.ns) 0 -1)
       (vim.api.nvim_buf_clear_namespace buf (state.anchor_ns) 0 -1)
       (each [_ w (ipairs (windows_for_buf buf))]
@@ -267,6 +269,7 @@ just call this again.
                          cfg.treesitter.auto_max_lines))]
     (if (or (= mode false) too_big?)
         (do
+          (highlighter.restore buf)
           (when was_active
             (pcall vim.treesitter.stop buf)
             (force_syntax_off buf))
@@ -275,6 +278,7 @@ just call this again.
         (do
           (when (not was_active)
             (pcall vim.treesitter.start buf :markdown))
+          (highlighter.install buf)
           (set st.started_ts (not was_active))
           (set st.stopped_ts false)))))
 

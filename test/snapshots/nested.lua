@@ -93,6 +93,20 @@ return { {
   }, {
     col = 2,
     opts = {
+      end_col = 12,
+      end_right_gravity = false,
+      end_row = 8,
+      hl_eol = false,
+      hl_group = "MadaQuoteText",
+      invalidate = true,
+      priority = 100,
+      right_gravity = true,
+      undo_restore = false
+    },
+    row = 8
+  }, {
+    col = 2,
+    opts = {
       end_col = 3,
       end_right_gravity = false,
       end_row = 8,
@@ -104,20 +118,6 @@ return { {
       virt_text_hide = false,
       virt_text_pos = "overlay",
       virt_text_repeat_linebreak = false
-    },
-    row = 8
-  }, {
-    col = 2,
-    opts = {
-      end_col = 12,
-      end_right_gravity = false,
-      end_row = 8,
-      hl_eol = false,
-      hl_group = "MadaQuoteText",
-      invalidate = true,
-      priority = 100,
-      right_gravity = true,
-      undo_restore = false
     },
     row = 8
   }, {
@@ -169,6 +169,20 @@ return { {
   }, {
     col = 2,
     opts = {
+      end_col = 12,
+      end_right_gravity = false,
+      end_row = 10,
+      hl_eol = false,
+      hl_group = "MadaQuoteText",
+      invalidate = true,
+      priority = 100,
+      right_gravity = true,
+      undo_restore = false
+    },
+    row = 10
+  }, {
+    col = 2,
+    opts = {
       end_col = 3,
       end_right_gravity = false,
       end_row = 10,
@@ -180,20 +194,6 @@ return { {
       virt_text_hide = false,
       virt_text_pos = "overlay",
       virt_text_repeat_linebreak = false
-    },
-    row = 10
-  }, {
-    col = 2,
-    opts = {
-      end_col = 12,
-      end_right_gravity = false,
-      end_row = 10,
-      hl_eol = false,
-      hl_group = "MadaQuoteText",
-      invalidate = true,
-      priority = 100,
-      right_gravity = true,
-      undo_restore = false
     },
     row = 10
   }, {
@@ -215,7 +215,20 @@ return { {
   }, {
     col = 0,
     opts = {
-      conceal_lines = "",
+      invalidate = true,
+      line_hl_group = "MadaCodeBlock",
+      priority = 90,
+      right_gravity = true,
+      undo_restore = false
+    },
+    row = 16
+  }, {
+    col = 2,
+    opts = {
+      conceal = "",
+      end_col = 8,
+      end_right_gravity = false,
+      end_row = 16,
       invalidate = true,
       right_gravity = true,
       undo_restore = false
@@ -238,16 +251,42 @@ return { {
       priority = 100,
       right_gravity = true,
       undo_restore = false,
-      virt_text = { { "lua", "MadaCodeLang" } },
+      virt_text = { { "lua ", "MadaCodeLang" } },
       virt_text_hide = false,
       virt_text_pos = "right_align",
       virt_text_repeat_linebreak = false
     },
     row = 17
   }, {
+    col = 2,
+    opts = {
+      invalidate = true,
+      priority = 100,
+      right_gravity = true,
+      undo_restore = false,
+      virt_text = { { " ", "MadaCodeBlock" } },
+      virt_text_hide = false,
+      virt_text_pos = "inline",
+      virt_text_repeat_linebreak = false
+    },
+    row = 17
+  }, {
     col = 0,
     opts = {
-      conceal_lines = "",
+      invalidate = true,
+      line_hl_group = "MadaCodeBlock",
+      priority = 90,
+      right_gravity = true,
+      undo_restore = false
+    },
+    row = 18
+  }, {
+    col = 2,
+    opts = {
+      conceal = "",
+      end_col = 5,
+      end_right_gravity = false,
+      end_row = 18,
       invalidate = true,
       right_gravity = true,
       undo_restore = false
@@ -273,10 +312,49 @@ return { {
     col = 0,
     opts = {
       invalidate = true,
+      priority = 90,
+      right_gravity = true,
+      undo_restore = false,
+      virt_lines = { { { "                                                                                ", "MadaCodeBlock" } } },
+      virt_lines_above = false,
+      virt_lines_leftcol = false,
+      virt_lines_overflow = "trunc"
+    },
+    row = 22
+  }, {
+    col = 0,
+    opts = {
+      invalidate = true,
       line_hl_group = "MadaCodeBlock",
       priority = 90,
       right_gravity = true,
       undo_restore = false
+    },
+    row = 22
+  }, {
+    col = 0,
+    opts = {
+      invalidate = true,
+      priority = 90,
+      right_gravity = true,
+      undo_restore = false,
+      virt_lines = { { { "                                                                                ", "MadaCodeBlock" } } },
+      virt_lines_above = true,
+      virt_lines_leftcol = false,
+      virt_lines_overflow = "trunc"
+    },
+    row = 22
+  }, {
+    col = 2,
+    opts = {
+      invalidate = true,
+      priority = 100,
+      right_gravity = true,
+      undo_restore = false,
+      virt_text = { { " ", "MadaCodeBlock" } },
+      virt_text_hide = false,
+      virt_text_pos = "inline",
+      virt_text_repeat_linebreak = false
     },
     row = 22
   } }

@@ -124,12 +124,13 @@ require("mada").setup({
 })
 ```
 
-Code blocks always keep their background band and language label; syntax
-colours inside them need a tree-sitter highlighter active. mada stops any
-highlighter by default — including the one Neovim 0.12 starts itself for
-markdown buffers — because its conceals under `conceallevel=2` made
-redraws 6-7x slower; set `treesitter.highlight = "auto"` or `true` to keep
-one running and get syntax colours back.
+Code blocks have a subtly darker background band, one space of horizontal
+padding, and one shaded row above and below. The language label stays inside
+the band. Syntax colours need an active tree-sitter
+highlighter. mada stops highlighters by default — including the one Neovim 0.12
+starts for markdown buffers — because its conceals under `conceallevel=2` made
+redraws 6-7x slower. Set `treesitter.highlight = "auto"` or `true` to keep one
+running and get syntax colours back.
 
 Glyphs, highlight groups and their defaults: requirements §7.
 
@@ -155,4 +156,3 @@ clear}(buf?)`. Full reference: `:help mada`.
 - [docs/requirements.md](docs/requirements.md) — what it does and why.
 - [docs/architecture.md](docs/architecture.md) — how it's built.
 - [docs/contribution.md](docs/contribution.md) — dev shell, build, checks.
-

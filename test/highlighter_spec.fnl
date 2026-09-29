@@ -4,14 +4,9 @@
 ;; runtime highlighter on or off must never change the *text* (only its
 ;; colours).
 ;;
-;; Known runtime-query behaviour, deliberately not exercised here: with
-;; `code.hide_fences = false`, the runtime highlighter still conceals fence
-;; rows on its own (a `conceal_lines` on `fenced_code_block_delimiter` in the
-;; bundled markdown `highlights.scm`), independent of mada's own
-;; `code.hide_fences`. The collision guard below runs with defaults
-;; (`code.hide_fences = true`), where mada already conceals those rows
-;; itself, so this never trips it; documented for the docs worker (see the
-;; task report).
+;; The runtime query normally conceals whole fence rows. Mada masks that
+;; metadata only in an attached buffer's active highlighter, leaving other
+;; buffers and the shared query unchanged.
 
 (local h (require :helpers))
 (local mada (require :mada))
@@ -20,6 +15,9 @@
 (fn check [cond msg]
   (when (not cond) (error msg 0)))
 
+(fn trim [s]
+  (pick-values 1 (s:gsub "%s+$" "")))
+
 (fn normalize [marks]
   "Strip opts.ns_id, as test.snapshot_spec does: it names the namespace by
 creation order within this process, not part of a mark's meaning."
@@ -27,6 +25,75 @@ creation order within this process, not part of a mark's meaning."
     (let [opts (vim.deepcopy m.opts)]
       (tset opts :ns_id nil)
       {:row m.row :col m.col : opts})))
+
+(fn fence_line_conceals [query root buf]
+  (var count 0)
+  (each [capture node metadata (query:iter_captures root buf)]
+    (when (and (= (node:type) :fenced_code_block_delimiter)
+               (or metadata.conceal_lines
+                   (and (. metadata capture)
+                        (. (. metadata capture) :conceal_lines))))
+      (set count (+ count 1))))
+  count)
+
+(fn test-query-mask-scoped-and-restored []
+  (mada.setup {:anti_conceal false :treesitter {:highlight true}})
+  (let [buf (vim.api.nvim_create_buf true false)]
+    (vim.api.nvim_buf_set_lines buf 0 -1 false ["```lua" "print('ok')" "```"])
+    (vim.api.nvim_win_set_buf 0 buf)
+    (vim.treesitter.start buf :markdown)
+    (let [instance (. vim.treesitter.highlighter.active buf)
+          holder (instance:get_query :markdown)
+          original (holder:query)
+          parser (vim.treesitter.get_parser buf :markdown)
+          tree (. (parser:parse) 1)
+          root (tree:root)]
+      (check (> (fence_line_conceals original root buf) 0)
+             "precondition: the runtime query conceals fence rows")
+      (set vim.bo.filetype :markdown)
+      (check (= instance (. vim.treesitter.highlighter.active buf))
+             "attach must preserve a user-started highlighter instance")
+      (check (not= original (holder:query))
+             "attach must wrap the buffer's Markdown query")
+      (h.eq 0 (fence_line_conceals (holder:query) root buf)
+            "attached highlighter must leave fence rows visible")
+      (check (> (fence_line_conceals original root buf) 0)
+             "original query metadata must remain intact")
+      (let [other (vim.api.nvim_create_buf true false)]
+        (vim.api.nvim_buf_set_lines other 0 -1 false ["```lua" :x "```"])
+        (vim.treesitter.start other :markdown)
+        (let [other-instance (. vim.treesitter.highlighter.active other)
+              other-holder (other-instance:get_query :markdown)]
+          (check (= original (other-holder:query))
+                 "another buffer must keep the shared original query"))
+        (vim.treesitter.stop other))
+      (mada.disable buf)
+      (check (= instance (. vim.treesitter.highlighter.active buf))
+             "disable must preserve the user-started highlighter instance")
+      (check (= original (holder:query))
+             "disable must restore the original parsed query")
+      (vim.treesitter.stop buf))))
+
+(fn test-visible-fences-with-highlighter []
+  (mada.setup {:anti_conceal false
+               :code {:hide_fences false}
+               :treesitter {:highlight true}})
+  (set vim.o.columns 80)
+  (set vim.o.lines 30)
+  (let [buf (vim.api.nvim_create_buf true false)]
+    (vim.api.nvim_buf_set_lines buf 0 -1 false ["```lua" "print('ok')" "```"])
+    (vim.api.nvim_win_set_buf 0 buf)
+    (set vim.bo.filetype :markdown)
+    (mada.render buf)
+    (let [opening (. (vim.fn.screenpos 0 1 1) :row)
+          closing (. (vim.fn.screenpos 0 3 1) :row)]
+      (check (> opening 0) "opening fence must have a screen row")
+      (check (> closing opening) "closing fence must have a screen row")
+      (h.eq "```lua" (trim (h.screen_row opening 40))
+            "hide_fences=false shows the opening fence and language with Tree-sitter")
+      (h.eq "```" (trim (h.screen_row closing 40))
+            "hide_fences=false shows the closing fence with Tree-sitter"))
+    (mada.disable buf)))
 
 ;; ---- AT-19: "auto", no highlighter active ----
 
@@ -228,6 +295,21 @@ this call returns (OQ-5)."
            "highlight=true: a highlighter must be active")
     (vim.fn.jobstop ch)))
 
+(fn test-explicit-query-set-preserved []
+  (let [ch (start-child)]
+    (setup ch "{treesitter = {highlight = true}}")
+    (exec ch
+          "vim.treesitter.query.set('markdown', 'highlights', '(fenced_code_block (fenced_code_block_delimiter) @markup.raw.block (#set! conceal_lines \"\"))')")
+    (edit ch :test/fixtures/code.md)
+    (check (exec ch
+                 "local b = vim.api.nvim_get_current_buf(); local h = vim.treesitter.highlighter.active[b]; return h and h:get_query('markdown'):query() ~= vim.treesitter.query.get('markdown', 'highlights')")
+           "an explicit query.set should be wrapped only in the active instance")
+    (exec ch "require('mada').disable(0)")
+    (check (exec ch
+                 "local b = vim.api.nvim_get_current_buf(); local h = vim.treesitter.highlighter.active[b]; return h and h:get_query('markdown'):query() == vim.treesitter.query.get('markdown', 'highlights')")
+           "disable should restore the exact explicit query.set object")
+    (vim.fn.jobstop ch)))
+
 (fn test-auto-over-limit-stops-runtime-highlighter []
   (let [ch (start-child)]
     (setup ch "{treesitter = {highlight = 'auto', auto_max_lines = 3}}")
@@ -238,6 +320,10 @@ this call returns (OQ-5)."
 
 [["AT-19: auto starts on attach, stops on disable, marks match the AT-18 snapshot"
   test-at19-auto-starts-stops-matches-snapshot]
+ ["runtime fence conceal metadata is masked only for the attached buffer and restored on disable"
+  test-query-mask-scoped-and-restored]
+ ["hide_fences=false shows opening and closing fence text with Tree-sitter"
+  test-visible-fences-with-highlighter]
  ["AT-20: user-started highlighter left alone, cursor row raw"
   test-at20-user-highlighter-untouched-cursor-raw]
  ["AT-21: treesitter.highlight = false never starts a highlighter"
@@ -248,5 +334,7 @@ this call returns (OQ-5)."
   test-default-stops-runtime-highlighter-and-syntax-restores-on-disable]
  ["highlight=true ensures a highlighter is active under the real runtime ftplugin"
   test-true-ensures-highlighter-active]
+ ["an explicit user query.set remains shared and is restored on disable"
+  test-explicit-query-set-preserved]
  ["highlight=\"auto\" over auto_max_lines stops the real runtime ftplugin's highlighter"
   test-auto-over-limit-stops-runtime-highlighter]]

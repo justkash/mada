@@ -240,10 +240,70 @@ string's first token equals `mermaid`, case-insensitively (FR-D1)."
        (let [lang (language_text ctx node)]
          (and lang (= (lang:lower) :mermaid)))))
 
+(fn code_row [marks row col]
+  "Band a code row and inset its content by one cell. Keep container
+prefixes before `col` in place, and let anti-conceal drop the inline mark."
+  (table.insert marks (mark.line_hl row :MadaCodeBlock BG))
+  (table.insert marks (mark.inline row col " " :MadaCodeBlock TEXT)))
+
+(fn code_padding [ctx marks first last ?top ?bottom]
+  "A shaded screen row above and below the block's content when its fences
+do not already provide those rows."
+  (when (<= first last)
+    (let [blank [[[(string.rep " " ctx.width) :MadaCodeBlock]]]]
+      (when (and ?top (line_at ctx first))
+        (table.insert marks (mark.virt_lines first blank BG true)))
+      (when (and ?bottom (line_at ctx last))
+        (table.insert marks (mark.virt_lines last blank BG))))))
+
+(fn code_fence_row [ctx marks row col]
+  "Use a fence's own source row for vertical padding. Conceal the fence and
+info string while leaving quote/list container prefixes in place."
+  (let [line (line_at ctx row)]
+    (when line
+      (table.insert marks (mark.line_hl row :MadaCodeBlock BG))
+      (when (< col (length line))
+        (table.insert marks (mark.conceal row col (length line) CONCEAL))))))
+
+(fn quote_depth [node]
+  "Number of quote containers around a code block. A literal `>` in code
+content must not be mistaken for another quote prefix."
+  (var depth 0)
+  (var parent (node:parent))
+  (while parent
+    (when (= (parent:type) :block_quote) (set depth (+ depth 1)))
+    (set parent (parent:parent)))
+  depth)
+
+(fn code_space? [line col]
+  (let [ch (line:sub (+ col 1) (+ col 1))]
+    (or (= ch " ") (= ch "\t"))))
+
+(fn code_prefix_col [line maxcol depth]
+  "End of this row's quote/list prefix. Quote markers can omit the space
+present on the opening fence, so matching its bytes is insufficient."
+  (var col 0)
+  (var valid true)
+  (for [_ 1 depth]
+    (when valid
+      (while (and (< col (length line)) (code_space? line col))
+        (set col (+ col 1)))
+      (if (= (line:sub (+ col 1) (+ col 1)) ">")
+          (do
+            (set col (+ col 1))
+            (when (code_space? line col)
+              (set col (+ col 1))))
+          (set valid false))))
+  (if (not valid)
+      0
+      (do
+        (while (and (< col maxcol) (code_space? line col))
+          (set col (+ col 1)))
+        col)))
+
 (fn M.fenced_code [ctx node]
-  "Mark records for a fenced code block (FR-R10): `conceal_line` on the
-fences when `code.hide_fences` (an unterminated fence hides only the
-opening row); `line_hl MadaCodeBlock` on content rows; with
+  "Mark records for a fenced code block (FR-R10): fence rows become shaded
+padding when `code.hide_fences`; `line_hl MadaCodeBlock` on content rows; with
 `code.show_language`, the language right-aligned on the first content row.
 Returns a list."
   (let [marks []
@@ -251,7 +311,8 @@ Returns a list."
         open (. delims 1)]
     (if (not open)
         marks
-        (let [(open_row) (open:range)
+        (let [(open_row open_col) (open:range)
+              depth (quote_depth node)
               close (. delims 2)
               terminated (not= close nil)
               (_first last) (node_rows node)
@@ -259,19 +320,23 @@ Returns a list."
               content_start (+ open_row 1)
               content_end (if terminated (- close_row 1) last)]
           (when ctx.cfg.code.hide_fences
-            (when (line_at ctx open_row)
-              (table.insert marks (mark.conceal_line open_row CONCEAL)))
-            (when (and terminated (line_at ctx close_row))
-              (table.insert marks (mark.conceal_line close_row CONCEAL))))
+            (code_fence_row ctx marks open_row open_col)
+            (when terminated
+              (let [(_close_row close_col) (close:range)]
+                (code_fence_row ctx marks close_row close_col))))
           (for [r (math.max content_start ctx.a) (math.min content_end ctx.b)]
-            (when (line_at ctx r)
-              (table.insert marks (mark.line_hl r :MadaCodeBlock BG))))
+            (let [line (line_at ctx r)]
+              (when line
+                (code_row marks r (code_prefix_col line open_col depth)))))
+          (code_padding ctx marks content_start content_end
+                        (not ctx.cfg.code.hide_fences)
+                        (or (not ctx.cfg.code.hide_fences) (not terminated)))
           (when (and ctx.cfg.code.show_language (<= content_start content_end)
                      (line_at ctx content_start))
             (let [lang (language_text ctx node)]
               (when (and lang (> (length lang) 0))
                 (table.insert marks
-                              (mark.right_align content_start lang
+                              (mark.right_align content_start (.. lang " ")
                                                 :MadaCodeLang TEXT)))))
           marks))))
 
@@ -285,10 +350,14 @@ Returns a list."
 ;; --- indented code (FR-R11) ----------------------------------------------
 
 (fn indented_code [ctx marks node]
-  (let [(first last) (node_rows node)]
+  (let [(first col) (node:range)
+        (_ last) (node_rows node)
+        depth (quote_depth node)]
     (for [r (math.max first ctx.a) (math.min last ctx.b)]
-      (when (line_at ctx r)
-        (table.insert marks (mark.line_hl r :MadaCodeBlock BG))))))
+      (let [line (line_at ctx r)]
+        (when line
+          (code_row marks r (code_prefix_col line col depth)))))
+    (code_padding ctx marks first last true true)))
 
 ;; --- thematic break (FR-R12) ----------------------------------------------
 
