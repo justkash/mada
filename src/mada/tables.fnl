@@ -689,7 +689,8 @@ strings and the prefix chunks, or nil when the header has no cells."
 
 (fn blank_grid_line [cfg widths]
   "One grid line of empty cells at `widths`: used to pad
-a row's display lines up to its S_r screen rows."
+a row's display lines up to its S_r screen rows and to separate body rows
+when any rendered cell wraps."
   (let [line []
         bv cfg.tables.border.v]
     (push_chunk line " " [])
@@ -706,18 +707,22 @@ a row's display lines up to its S_r screen rows."
 content lines and header rule (S_r/anchor columns are window- and cursor-
 dependent, so they are computed fresh at emit time, not cached)."
   (let [(hrow hcol) (header:range)
-        (hlines) (row_grid ctx.cfg g.header_units g.widths g.aligns)
+        (hlines hheight) (row_grid ctx.cfg g.header_units g.widths g.aligns)
         header_content (icollect [_ l (ipairs hlines)] (prefixed g.pchunks l))
         (drow dcol) (delim:range)
         delim_rule_line (prefixed g.pchunks g.header_line)
         blank_line (prefixed g.pchunks (blank_grid_line ctx.cfg g.widths))
         row_entries (icollect [i r (ipairs rows)]
                       (let [(rrow rcol) (r:range)
-                            (rlines) (row_grid ctx.cfg (. g.body_units i)
-                                               g.widths g.aligns)
+                            (rlines rheight) (row_grid ctx.cfg
+                                                       (. g.body_units i)
+                                                       g.widths g.aligns)
                             content (icollect [_ l (ipairs rlines)]
                                       (prefixed g.pchunks l))]
-                        {: rrow : rcol : content}))]
+                        {: rrow : rcol : content : rheight}))]
+    (var spaced? (> hheight 1))
+    (each [_ r (ipairs row_entries)]
+      (when (> r.rheight 1) (set spaced? true)))
     {: hrow
      : hcol
      : header_content
@@ -725,12 +730,13 @@ dependent, so they are computed fresh at emit time, not cached)."
      : dcol
      : delim_rule_line
      : blank_line
+     : spaced?
      :rows row_entries}))
 
-(fn build_d [content rule_line blank_line s_r kind]
+(fn build_d [content rule_line blank_line s_r kind gap_after?]
   "The lines row `kind` displays, padded with `blank_line` up to `s_r`
 lines: header -> content then blanks; delimiter -> its rule then blanks;
-body -> content then blanks."
+body -> content then blanks, followed by an optional body-row gap."
   (if (= kind :delim)
       (let [out [rule_line]]
         (for [i 2 s_r] (table.insert out blank_line))
@@ -738,6 +744,9 @@ body -> content then blanks."
       (let [out (icollect [_ l (ipairs content)] l)]
         (for [i (+ (length out) 1) s_r]
           (table.insert out blank_line))
+        ;; The separator follows source-row padding, so a source line that
+        ;; wraps beyond its laid-out content cannot consume the gap.
+        (when gap_after? (table.insert out blank_line))
         out)))
 
 (fn cursor_tail [tail kind blank_line]
@@ -746,7 +755,16 @@ keep the same count as the laid-out case (no height jump when the cursor
 enters/leaves) but with content replaced by blank grid lines."
   (if (= kind :delim) tail (icollect [_ _ (ipairs tail)] blank_line)))
 
-(fn emit_table_row [ctx marks win row col kind content rule_line blank_line]
+(fn emit_table_row [ctx
+                    marks
+                    win
+                    row
+                    col
+                    kind
+                    content
+                    rule_line
+                    blank_line
+                    gap_after?]
   "Overlay + virt_lines marks for one source row (FR-R13): first S_r display
 lines become `virt_text_win_col = 0` overlays, one per screen row; any
 remaining lines become one `virt_lines` mark below the row."
@@ -754,7 +772,7 @@ remaining lines become one `virt_lines` mark below the row."
     (let [line (line_at ctx row)]
       (when line
         (let [s_r (screen.s_r_for win row)
-              d (build_d content rule_line blank_line s_r kind)
+              d (build_d content rule_line blank_line s_r kind gap_after?)
               anchors (screen.row_anchor_cols win ctx.buf line s_r ctx.width)
               cursor? (= row ctx.cursor)]
           (for [k 1 s_r]
@@ -780,9 +798,9 @@ remaining lines become one `virt_lines` mark below the row."
                     L.blank_line)
     (emit_table_row ctx marks win L.drow L.dcol :delim [] L.delim_rule_line
                     L.blank_line)
-    (each [_ r (ipairs L.rows)]
+    (each [i r (ipairs L.rows)]
       (emit_table_row ctx marks win r.rrow r.rcol :body r.content nil
-                      L.blank_line))))
+                      L.blank_line (and L.spaced? (< i (length L.rows)))))))
 
 ;; --- layout cache (FR-P3) ----------------------------------------------------
 ;; buf -> {: tick : width : cfg : layouts} where `layouts` maps a table's

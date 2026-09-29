@@ -140,6 +140,15 @@ row."
     (table.sort overlays (fn [a b] (< a.col b.col)))
     overlays))
 
+(fn row-virt-lines [buf row]
+  "Flat list of virtual lines attached below one source row."
+  (let [out []]
+    (each [_ m (ipairs (h.marks buf))]
+      (when (and (= m.row row) m.opts.virt_lines (not m.opts.virt_lines_above))
+        (each [_ line (ipairs m.opts.virt_lines)]
+          (table.insert out (chunk-text line)))))
+    out))
+
 (fn s_r_of [win row]
   "Screen rows `row` occupies in `win`, the same measure mada.tables uses
 (nvim_win_text_height, .all - .fill)."
@@ -430,6 +439,79 @@ row."
         (check (not (mid-text:find "[1-9]"))
                "expected a blank grid line (no cell content) as padding")))))
 
+;; ---- wrapped cells add one blank grid line between body rows --------------
+
+(fn test-wrapped-body-row-spacing []
+  (mada.setup {:anti_conceal false})
+  (let [long-row "| alpha beta gamma delta epsilon zeta eta theta | x |"
+        header "| A | B |"
+        delim "| --- | --- |"
+        solo (scratch-md [header delim long-row])
+        solo-win (sized-win 24 false)]
+    (render! solo solo-win)
+    (let [solo-tail (row-virt-lines solo 2)
+          together (scratch-md [header delim long-row "| short | y |"])
+          win (sized-win 24 false)]
+      (render! together win)
+      (let [first-tail (row-virt-lines together 2)
+            last-tail (row-virt-lines together 3)
+            spacer (. first-tail (length first-tail))]
+        (check (> (length solo-tail) 0)
+               "wrapped body cell should continue below its source row")
+        (check (= (length first-tail) (+ (length solo-tail) 1))
+               "wrapped table should add exactly one line after the first body row")
+        (check (not (spacer:find "%w"))
+               "body-row spacer should contain no cell content")
+        (check (spacer:find "│" 1 true)
+               "body-row spacer should preserve the interior divider")
+        (check (= (length last-tail) 0)
+               "wrapped table should not add a gap after the final body row")))))
+
+(fn test-wrapped-header-spaces-body []
+  (mada.setup {:anti_conceal false})
+  (let [buf (scratch-md ["| A very long header that must wrap | B |"
+                         "| --- | --- |"
+                         "| x | y |"
+                         "| z | w |"])
+        win (sized-win 24 false)]
+    (render! buf win)
+    (check (> (length (row-virt-lines buf 0)) 0) "long header cell should wrap")
+    (check (= (length (row-virt-lines buf 2)) 1)
+           "header wrapping should add one body-row spacer")
+    (check (= (length (row-virt-lines buf 3)) 0)
+           "header wrapping should not add a trailing spacer")))
+
+(fn test-spacer-after-source-padding-and-cursor []
+  (mada.setup {:anti_conceal true})
+  (let [buf (scratch-md ["| A | B |"
+                         "| --- | --- |"
+                         "| [x](https://example.com/a/very/long/link/that/wraps/source) | y |"
+                         "| alpha beta gamma delta epsilon zeta | z |"])
+        win (sized-win 24 true)]
+    (set-cursor! buf win 0)
+    (render! buf win)
+    (let [s_r (s_r_of win 2)
+          overlays (row-overlays buf 2)
+          tail (row-virt-lines buf 2)
+          spacer (. tail 1)]
+      (check (> s_r 1) "link source should wrap beyond one screen row")
+      (check (= (length overlays) s_r)
+             "source-wrap padding should cover every screen row")
+      (check (= (length tail) 1)
+             "spacer should follow source-wrap padding in virt_lines")
+      (check (not (spacer:find "%w"))
+             "spacer below padded source should contain no cell content")
+      (set-cursor! buf win 2)
+      (render! buf win)
+      (check (= (length (row-virt-lines buf 2)) (length tail))
+             "cursor anti-conceal should preserve spacer height")
+      (vim.api.nvim_win_set_cursor win [4 1])
+      (events.on_cursor_moved buf)
+      (let [incremental (h.marks buf)]
+        (render! buf win)
+        (h.eq incremental (h.marks buf)
+              "spaced table cursor update should match full re-render")))))
+
 ;; ---- `linebreak` on still places one overlay per screen row ---------------
 
 (fn test-linebreak-one-overlay-per-row []
@@ -502,6 +584,12 @@ row."
   test-eof-full-grid]
  ["a row whose source wraps taller than its laid-out content is padded with blank grid lines"
   test-wrap-pads-short-content]
+ ["a wrapped body cell adds one divider-preserving gap between body rows"
+  test-wrapped-body-row-spacing]
+ ["a wrapped header cell adds body spacing without a trailing gap"
+  test-wrapped-header-spaces-body]
+ ["source wrapping keeps a spacer after padding and cursor updates"
+  test-spacer-after-source-padding-and-cursor]
  ["linebreak on still places one overlay per screen row"
   test-linebreak-one-overlay-per-row]
  ["a table in a block quote: prefix carries the quote glyph"

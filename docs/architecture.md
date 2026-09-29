@@ -188,7 +188,7 @@ on CursorMoved(buf)
 | Fenced code | With `hide_fences`, conceal fence/info text but retain shaded fence rows as top/bottom padding; `line_hl MadaCodeBlock` on content rows with one space of horizontal padding after any quote/list prefix; `right_align` language inside the block |
 | Indented code | `line_hl MadaCodeBlock` per row with one space of horizontal padding after structural prefixes/indent and one shaded row above and below the block |
 | Thematic break | `overlay` of `rule` over the source + `inline` `rule` to the window width |
-| Table | `tables.fnl` (FR-R13), single path: rows never concealed or hidden; header separator and column separators drawn as overlays at window column 0, one per screen row S of that row; lines beyond S in `virt_lines` mark; inline marks on non-cursor rows dropped; cursor row raw in place, lines below keep count with cells blanked and header separator retained when applicable; no outer borders or body row rules |
+| Table | `tables.fnl` (FR-R13), single path: rows never concealed or hidden; header separator and column separators drawn as overlays at window column 0, one per screen row S of that row; lines beyond S in `virt_lines` mark; if any cell wraps, one blank grid row with column separators is added between adjacent body rows (never between header and body or after final row); inline marks on non-cursor rows dropped; cursor row raw in place, lines below keep count with cells blanked and header separator retained when applicable; no outer borders or body row rules |
 | HTML comment | `hl MadaComment` per row |
 | Front matter | `line_hl MadaComment` per row |
 | Backslash escape | `conceal` the `\` |

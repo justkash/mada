@@ -55,6 +55,19 @@ return { {
     },
     row = 3
   }, {
+    col = 0,
+    opts = {
+      invalidate = true,
+      priority = 120,
+      right_gravity = true,
+      undo_restore = false,
+      virt_lines = { { { " " }, { "      " }, { "│", "MadaTableBorder" }, { "                                                              " }, { "│", "MadaTableBorder" }, { "        " }, { " " } } },
+      virt_lines_above = false,
+      virt_lines_leftcol = false,
+      virt_lines_overflow = "trunc"
+    },
+    row = 4
+  }, {
     col = 40,
     opts = {
       invalidate = true,
@@ -82,6 +95,19 @@ return { {
       virt_text_win_col = 0
     },
     row = 4
+  }, {
+    col = 0,
+    opts = {
+      invalidate = true,
+      priority = 120,
+      right_gravity = true,
+      undo_restore = false,
+      virt_lines = { { { " " }, { "      " }, { "│", "MadaTableBorder" }, { "                                                              " }, { "│", "MadaTableBorder" }, { "        " }, { " " } } },
+      virt_lines_above = false,
+      virt_lines_leftcol = false,
+      virt_lines_overflow = "trunc"
+    },
+    row = 5
   }, {
     col = 11,
     opts = {

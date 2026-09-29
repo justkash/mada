@@ -170,7 +170,10 @@ tables.style                                        *mada-option-tables.style*
     "unicode" | "off" (default "unicode")
     `"unicode"` lays the table out in virtual text (FR-R13): a horizontal
     rule below the header and vertical separators between columns. There are
-    no outer borders or horizontal rules between body rows. Nothing is hidden.
+    no outer borders or body rules. If any cell, including a header cell,
+    wraps to multiple visual lines, one blank grid row separates each pair of
+    body rows. No blank row is added after the header or final body row.
+    Tables whose cells fit one line stay compact. Nothing is hidden.
     `"off"` applies highlights only, no layout.
 
 tables.border.v                                  *mada-option-tables.border.v*
@@ -462,7 +465,8 @@ follows the window rendered last; marks are per buffer, not per window.
 - A table's virtual lines inside a list or block quote carry only blanks
 and `quote` glyphs as their prefix, not the list marker.
 - A table row whose raw text wraps onto more screen lines than its grid
-lines is padded with blank grid lines.
+lines is padded with blank grid lines. Wrapped table content also adds one
+blank grid row between adjacent body rows.
 - With the tree-sitter highlighter enabled, its conceals on table rows
 can misplace grid lines.
 
