@@ -41,13 +41,13 @@
 
     # Neovim wrapped with the plugin installed and configured: a runnable demo
     # and a smoke test that the compiled Lua really loads. termaid goes on its
-    # PATH so Mermaid blocks in the demo actually render.
+    # PATH first so the demo uses its patched backend over an older installation.
     mkNvim = pkgs: pkgs.neovim.override {
       configure = {
         packages.${pname}.start = [ pkgs.${pname} ];
         customLuaRC = "require('${pname}').setup()";
       };
-      extraMakeWrapperArgs = "--suffix PATH : ${pkgs.termaid}/bin";
+      extraMakeWrapperArgs = "--prefix PATH : ${pkgs.termaid}/bin";
     };
 
     supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
@@ -115,6 +115,7 @@
     checks = forEachSupportedSystem ({ pkgs }: {
       default = pkgs.${pname};
       docs = pkgs.${docsName}.docs;
+      termaid = pkgs.termaid;
 
       # `fnlfmt --check` prints "Not formatted: <file>" for a misformatted
       # file but always exits 0, so `-exec fnlfmt --check {} +` never fails

@@ -235,13 +235,15 @@ above the opening fence (OQ-1), so re-rendering the block's own rows is
 always enough (no attach-row union needed any more)."
   (M.block_range buf node))
 
-;; ---- block key and width bucket (§8.1) ----
+;; ---- block key and available text width (§8.1) ----
 
-(fn bucket_for [width step]
-  (if (or (not step) (<= step 0)) width (- width (% width step))))
+(fn backend_width [width]
+  "termaid needs a positive width even when window decorations leave no
+text columns."
+  (math.max 1 (or width 0)))
 
-(fn block_key [source width step ascii]
-  (.. source "\000" (tostring (bucket_for width step)) "\000" (tostring ascii)))
+(fn block_key [source width ascii]
+  (.. source "\000" (tostring width) "\000" (tostring ascii)))
 
 ;; ---- termaid presence (checked once per session, per binary) ----
 
@@ -261,12 +263,12 @@ always enough (no attach-row union needed any more)."
 
 ;; ---- jobs (§8.3) ----
 
-(fn build_argv [cmd bucket ascii args]
+(fn build_argv [cmd width ascii args]
   (let [argv []]
     (each [_ c (ipairs (normalize_cmd cmd))]
       (table.insert argv c))
     (table.insert argv :--width)
-    (table.insert argv (tostring bucket))
+    (table.insert argv (tostring width))
     (when ascii (table.insert argv :--ascii))
     (each [_ a (ipairs args)] (table.insert argv a))
     argv))
@@ -275,9 +277,21 @@ always enough (no attach-row union needed any more)."
   (let [pos (vim.api.nvim_buf_get_extmark_by_id buf (state.anchor_ns) anchor {})]
     (if (> (length pos) 0) (. pos 1) nil)))
 
-(fn rerender_anchor [buf anchor]
-  "Re-render the block's rows (found from the anchor row) after its job
-completes (§8.3)."
+(fn render_target [buf win]
+  (if (and win (vim.api.nvim_win_is_valid win)
+           (= (vim.api.nvim_win_get_buf win) buf))
+      win
+      (do
+        (var target nil)
+        (each [_ w (ipairs (vim.api.nvim_list_wins))]
+          (when (and (not target) (= (vim.api.nvim_win_get_buf w) buf))
+            (set target w)))
+        target)))
+
+(fn rerender_anchor [buf anchor win]
+  "Re-render the block in its most recent window after its job completes.
+Marks are buffer-scoped, so rendering every window of a different width
+would keep starting jobs for alternating keys (FR-D16)."
   (let [row (anchor_open_row buf anchor)]
     (when row
       (let [root (current_root buf)]
@@ -285,10 +299,10 @@ completes (§8.3)."
           (let [node (find_block_node root row)]
             (when node
               (let [(lo hi) (M.render_range buf node)
-                    render (require :mada.render)]
-                (each [_ w (ipairs (vim.api.nvim_list_wins))]
-                  (when (= (vim.api.nvim_win_get_buf w) buf)
-                    (render.render buf w lo hi false)))))))))))
+                    render (require :mada.render)
+                    target (render_target buf win)]
+                (when target
+                  (render.render buf target lo hi false))))))))))
 
 (fn on_job_exit [buf anchor key obj expected_state]
   "Runs on vim.schedule. Drops the result if the buffer's state is gone or
@@ -304,7 +318,7 @@ was replaced (FR-M8)."
                   (tset bs :diagram {: key :chunks result})
                   (tset bs :err nil))
                 (tset bs :err {: key :msg result})))
-          (rerender_anchor buf anchor)
+          (rerender_anchor buf anchor bs.win)
           (vim.api.nvim_exec_autocmds :User
                                       {:pattern :MadaDiagram
                                        :data {: buf
@@ -316,8 +330,8 @@ was replaced (FR-M8)."
 (fn spawn [ctx anchor key source st]
   (let [buf ctx.buf
         cfg ctx.cfg
-        bucket (bucket_for ctx.width cfg.mermaid.width_bucket)
-        argv (build_argv cfg.mermaid.cmd bucket cfg.ascii cfg.mermaid.args)]
+        width (backend_width ctx.width)
+        argv (build_argv cfg.mermaid.cmd width cfg.ascii cfg.mermaid.args)]
     (tset (. st.blocks anchor) :job key)
     (log.debug cfg "mermaid: spawn buf=%s anchor=%s argv=%s" (tostring buf)
                (tostring anchor) (table.concat argv " "))
@@ -330,7 +344,7 @@ was replaced (FR-M8)."
 ;; ---- mark building per state (§8.2) ----
 
 (fn ensure_block_state [st anchor]
-  (or (. st.blocks anchor) (let [nb {:diagram nil :err nil :job nil}]
+  (or (. st.blocks anchor) (let [nb {:diagram nil :err nil :job nil :win nil}]
                              (tset st.blocks anchor nb)
                              nb)))
 
@@ -464,11 +478,11 @@ count."
                                      "mada: termaid not found; Mermaid blocks render as code blocks"
                                      vim.log.levels.WARN))
                   (append marks (block.fenced_code ctx node)))
-                (let [width (or ctx.width 0)
-                      key (block_key source width cfg.mermaid.width_bucket
-                                     cfg.ascii)
+                (let [width (backend_width ctx.width)
+                      key (block_key source width cfg.ascii)
                       anchor (M.get_anchor buf osr)
                       bs (ensure_block_state st anchor)]
+                  (tset bs :win ctx.win)
                   (when (and (or (not bs.diagram) (not= bs.diagram.key key))
                              (not bs.job)
                              (or (not bs.err) (not= bs.err.key key)))

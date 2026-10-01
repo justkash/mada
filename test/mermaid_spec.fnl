@@ -1,6 +1,6 @@
 ;; test.mermaid_spec - M1: AT-7, AT-9-AT-13, AT-28; FR-D17; placement "off";
-;; `:Mada render!`; detach dropping late results (FR-M8); a width-bucket
-;; crossing; invariant 2 on test/fixtures/mermaid.md. AT-9, AT-13 and AT-28
+;; `:Mada render!`; detach dropping late results (FR-M8); exact available
+;; width and automatic resize renders; invariant 2 on test/fixtures/mermaid.md. AT-9, AT-13 and AT-28
 ;; need real CursorMoved/TextChanged (OQ-5), so they drive a real child
 ;; Neovim over RPC, in the style of test.events_spec.
 ;;
@@ -429,31 +429,6 @@ process; \"\" means unset (the script treats empty the same as unset)."
     (h.eq 0 (length (h.marks buf))
           "detach: no marks should appear from the dropped result")))
 
-;; ---- width-bucket crossing re-runs the diagram ----
-
-(fn test-width-bucket-crossing []
-  ;; A lone window always fills `columns`: neither `nvim_win_set_width` nor
-  ;; changing `vim.o.columns` actually changes its reported width headless
-  ;; with no UI attached. A vsplit gives a window whose width really can be
-  ;; set, so text_width(win) (= win width - textoff) really crosses a
-  ;; width_bucket (10) multiple.
-  (set-env {})
-  (setup-mermaid {})
-  (vim.cmd.vsplit)
-  (let [win (vim.api.nvim_get_current_win)]
-    (vim.api.nvim_win_set_width win 60)
-    (let [buf (scratch-md (mermaid-lines ["graph LR" "  A --> B"]))]
-      (check (h.wait_diagram buf) "bucket: expected the first job")
-      (let [txt1 (full-diagram-text (h.marks buf))]
-        (vim.api.nvim_win_set_width win 30)
-        (mada.render buf)
-        (check (h.wait_diagram buf)
-               "bucket: expected a new job after crossing a width_bucket boundary")
-        (let [txt2 (full-diagram-text (h.marks buf))]
-          (check (not= txt1 txt2)
-                 "bucket: crossing a width_bucket boundary should re-run the diagram")))))
-  (vim.cmd.only))
-
 ;; ---- drawn diagram longer than the block's own rows: overflow virt_lines --
 ;; below the *first* content row (OQ-1: scrolling the topline into a hidden
 ;; closing fence row's filler used to snap it back down; the overflow now
@@ -769,6 +744,51 @@ return out" [buf]))
 (fn child-buf [ch] (exec ch "return vim.api.nvim_get_current_buf()"))
 (fn child-win [ch] (exec ch "return vim.api.nvim_get_current_win()"))
 
+(fn child-available-width [ch win]
+  "Return window width, gutter width, and the text width passed to termaid."
+  (exec ch "local win = ...
+local width = vim.api.nvim_win_get_width(win)
+local textoff = vim.fn.getwininfo(win)[1].textoff
+return {width, textoff, width - textoff}" [win]))
+
+(fn child-resize-width [ch win target]
+  "Resize a real split and redraw so Neovim dispatches WinResized."
+  (exec ch "local win, target = ...
+vim.api.nvim_win_set_width(win, target)
+vim.cmd.redraw()" [win target]))
+
+(fn child-open-gantt [ch buf]
+  (exec ch "local buf = ...
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+  '# Diagram', '', '```mermaid', 'gantt',
+  '  title Wider timeline', '  dateFormat YYYY-MM-DD',
+  '  section Work', '  Task :a1, 2026-01-01, 10d',
+  '```', '', 'after'
+})
+vim.bo[buf].filetype = 'markdown'" [buf]))
+
+(fn child-has-running-job [ch buf]
+  (exec ch "local buf = ...
+local st = require('mada.state').get(buf)
+for _, bs in pairs(st.blocks) do
+  if bs.job then return true end
+end
+return false" [buf]))
+
+(fn child-wait-settled-width [ch buf width]
+  "Wait until a matching result is installed and no replacement job runs."
+  (exec ch "local buf, width = ...
+return vim.wait(5000, function()
+  local st = require('mada.state').get(buf)
+  for _, bs in pairs(st.blocks) do
+    if bs.diagram and not bs.job and
+       bs.diagram.key:find('\\0' .. tostring(width) .. '\\0', 1, true) then
+      return true
+    end
+  end
+  return false
+end, 10)" [buf width]))
+
 (fn child-block-rows [ch buf]
   "(open_row close_row), 0-based inclusive: mirrors `block-rows` above, run
 inside the child process."
@@ -785,6 +805,146 @@ return {open, close or (#lines - 1)}" [buf]))
   (exec ch "local win, a, b = ...
 local t = vim.api.nvim_win_text_height(win, {start_row = a, end_row = b})
 return t.all - t.fill" [win a b]))
+
+;; A split is required in headless Neovim: a lone window always fills
+;; `columns`. The fake backend exposes its --width in the rendered diagram.
+;; Widths 63 and 64 stay inside one configured width_bucket (10), so each
+;; one-column resize must start a job despite no bucket boundary crossing.
+(fn test-exact-width-and-resize []
+  (with-child (fn [ch]
+                (child-reset-env ch)
+                (child-setup-mermaid ch fake-cmd)
+                (exec ch "vim.o.columns = 120
+vim.cmd.vnew()
+vim.wo.number = true
+vim.wo.signcolumn = 'yes'
+MADA_TEST_RESIZE_EVENTS = 0
+vim.api.nvim_create_autocmd('WinResized', {callback = function()
+  MADA_TEST_RESIZE_EVENTS = MADA_TEST_RESIZE_EVENTS + 1
+end})")
+                (let [buf (child-buf ch)
+                      win (child-win ch)
+                      initial (child-available-width ch win)
+                      textoff (. initial 2)]
+                  (check (> textoff 0)
+                         "width: expected number/sign gutters in the split")
+                  (child-resize-width ch win (+ textoff 63))
+                  (let [width (child-available-width ch win)]
+                    (check (= (. width 3) 63)
+                           "width: expected a 63-column text area before rendering"))
+                  (let [armed (child-arm-diagram-wait ch buf)]
+                    (child-open-gantt ch buf)
+                    (check (child-wait-diagram-armed ch armed)
+                           "width: expected the initial Gantt render"))
+                  (check (contains? (full-diagram-text (child-marks ch buf))
+                                    "width=63 ascii=no")
+                         "width: termaid must receive the exact 63 text columns, including unused bucket space")
+                  (each [_ target (ipairs [64 63])]
+                    (let [before (exec ch "return MADA_TEST_RESIZE_EVENTS")
+                          armed (child-arm-diagram-wait ch buf)]
+                      (child-resize-width ch win (+ textoff target))
+                      (let [actual (child-available-width ch win)]
+                        (check (= (. actual 3) target)
+                               (: "width: expected %d text columns after resize, got %d"
+                                  :format target (. actual 3))))
+                      (check (child-wait-diagram-armed ch armed)
+                             (: "width: expected an automatic Gantt render at %d columns"
+                                :format target))
+                      (check (> (exec ch "return MADA_TEST_RESIZE_EVENTS")
+                                before)
+                             "width: expected a real WinResized event")
+                      (check (contains? (full-diagram-text (child-marks ch buf))
+                                        (.. :width= target " ascii=no"))
+                             (: "width: termaid must receive all %d text columns after resize"
+                                :format target))))
+                  (let [armed (child-arm-diagram-wait ch buf)]
+                    (exec ch "vim.cmd('setlocal signcolumn=no')")
+                    (let [available (. (child-available-width ch win) 3)]
+                      (check (> available 63)
+                             "width: removing the sign gutter should increase text width")
+                      (check (child-wait-diagram-armed ch armed)
+                             "width: expected an automatic render after signcolumn changed")
+                      (check (contains? (full-diagram-text (child-marks ch buf))
+                                        (.. :width= available " ascii=no"))
+                             "width: gutter OptionSet must pass updated text width to termaid")))))))
+
+(fn test-resize-while-job-in-flight []
+  (with-child (fn [ch]
+                (child-reset-env ch)
+                (child-setenv ch :FAKE_SLEEP :0.2)
+                (child-setup-mermaid ch fake-cmd)
+                (exec ch "vim.o.columns = 120
+vim.cmd.vnew()
+vim.wo.number = true
+vim.wo.signcolumn = 'yes'")
+                (let [buf (child-buf ch)
+                      win (child-win ch)
+                      textoff (. (child-available-width ch win) 2)]
+                  (child-resize-width ch win (+ textoff 63))
+                  (child-open-gantt ch buf)
+                  (check (child-has-running-job ch buf)
+                         "in-flight width: initial 63-column job must be running before resize")
+                  (child-resize-width ch win (+ textoff 67))
+                  (child-resize-width ch win (+ textoff 62))
+                  (check (= (. (child-available-width ch win) 3) 62)
+                         "in-flight width: expected the final resize to leave 62 text columns")
+                  (check (child-wait-settled-width ch buf 62)
+                         "in-flight width: expected the latest width to settle")
+                  (check (contains? (full-diagram-text (child-marks ch buf))
+                                    "width=62 ascii=no")
+                         "in-flight width: final diagram must use the latest width")
+                  (exec ch "vim.wait(500, function() return false end, 25)")
+                  (check (contains? (full-diagram-text (child-marks ch buf))
+                                    "width=62 ascii=no")
+                         "in-flight width: an older job must not overwrite the final width")))))
+
+(fn test-unequal-splits-settle []
+  (with-child (fn [ch]
+                (child-reset-env ch)
+                (child-setup-mermaid ch fake-cmd)
+                (exec ch "vim.o.columns = 120
+vim.cmd.vnew()
+MADA_TEST_DIAGRAM_EVENTS = 0
+vim.api.nvim_create_autocmd('User', {pattern = 'MadaDiagram', callback = function()
+  MADA_TEST_DIAGRAM_EVENTS = MADA_TEST_DIAGRAM_EVENTS + 1
+end})")
+                (let [buf (child-buf ch)
+                      first (child-win ch)
+                      armed (child-arm-diagram-wait ch buf)]
+                  (child-open-gantt ch buf)
+                  (check (child-wait-diagram-armed ch armed)
+                         "split width: expected the first diagram")
+                  (exec ch "vim.cmd.vsplit()")
+                  (let [second (child-win ch)]
+                    (child-resize-width ch second 30)
+                    (let [a (. (child-available-width ch first) 3)
+                          b (. (child-available-width ch second) 3)]
+                      (check (not= a b)
+                             "split width: the same buffer must occupy unequal text widths"))
+                    (exec ch "vim.wait(700, function() return false end, 20)")
+                    (let [collector (exec ch "local buf = ...
+local st = require('mada.state').get(buf)
+for _, bs in pairs(st.blocks) do
+  if bs.win and vim.api.nvim_win_is_valid(bs.win) then
+    local win = bs.win
+    return {win, vim.api.nvim_win_get_width(win) - vim.fn.getwininfo(win)[1].textoff}
+  end
+end
+return {}" [buf])]
+                      (check (or (= (. collector 1) first)
+                                 (= (. collector 1) second))
+                             "split width: expected a surviving last-render window")
+                      (check (child-wait-settled-width ch buf (. collector 2))
+                             "split width: expected last render window's width to settle")
+                      (check (contains? (full-diagram-text (child-marks ch buf))
+                                        (.. :width= (. collector 2) " ascii=no"))
+                             "split width: the diagram must match its last render window")
+                      (let [count (exec ch "return MADA_TEST_DIAGRAM_EVENTS")]
+                        (exec ch
+                              "vim.wait(500, function() return false end, 20)")
+                        (check (= (exec ch "return MADA_TEST_DIAGRAM_EVENTS")
+                                  count)
+                               "split width: unequal windows must not repeatedly respawn jobs"))))))))
 
 (fn test-at9 []
   (with-child (fn [ch]
@@ -942,7 +1102,12 @@ return t.all - t.fill" [win a b]))
  ["detach drops a late job result (FR-M8)" test-detach-drops-late-results]
  ["NFR-Q4: the job-exit callback runs under log.guard (disabled, one ERROR notification, no raw error)"
   test-mermaid-job-exit-guarded]
- ["width-bucket crossing re-runs the diagram" test-width-bucket-crossing]
+ ["Gantt uses exact text width and automatically rerenders on split resize"
+  test-exact-width-and-resize]
+ ["Gantt resize while backend is running settles at the latest width"
+  test-resize-while-job-in-flight]
+ ["Gantt in unequal splits settles without repeated backend jobs"
+  test-unequal-splits-settle]
  ["drawn diagram longer than the block's own rows: overflow virt_lines below the first content row"
   test-drawn-overlay-and-overflow]
  ["drawn diagram with the runtime tree-sitter highlighter active: every line visible, nothing anchored on a fence row"

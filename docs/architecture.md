@@ -69,7 +69,7 @@ state[buf] = {
   tick       = changedtick at the last parsing render,
   cursor     = cursor row last seen in the current window,
   clean      = { [win] = {a, b} },                    rows rendered in win since the last edit
-  blocks     = { [anchor] = {diagram?, err?, job?} }, §8.2
+  blocks     = { [anchor] = {diagram?, err?, job?, win?} }, §8.2
   started_ts = bool,                                  plugin started the highlighter (FR-M10)
   stopped_ts = bool,                                  plugin stopped a highlighter that was running (FR-M10)
 }
@@ -256,7 +256,7 @@ Plugin-owned, never the runtime `highlights.scm` (it varies per install and carr
 ### 8.1 Detection and key
 
 - A Mermaid block is a `@code.block` whose info string's first token (before whitespace or `{`) is `mermaid`, any case (FR-D1). Source = content rows with the fence's column stripped (this also removes `>` prefixes inside quotes). Empty source: ordinary code block.
-- `key = source .. "\0" .. bucket .. "\0" .. tostring(ascii)`, with `bucket = w - w % width_bucket` for `w = text_width(win)`. A plain string compare: no hash, no shared cache (D5).
+- `key = source .. "\0" .. width .. "\0" .. tostring(ascii)`, with `width = max(1, text_width(win))`. The exact usable width is measured on each render and passed to termaid. `WinResized` re-renders the affected viewports; `OptionSet` also re-renders when gutter options change. `mermaid.width_bucket` remains accepted for compatibility but is ignored. A plain string compare: no hash, no shared cache (D5).
 
 ### 8.2 Block state
 
@@ -267,6 +267,7 @@ blocks[anchor] = {
   diagram = {key, chunks}?,   latest completed diagram, possibly for an older key
   err     = {key, msg}?,      latest error
   job     = key?,             key of the running job
+  win     = window id,        most recent window requesting this block
 }
 ```
 
@@ -323,10 +324,10 @@ sequenceDiagram
   Note over R,T: a key that changed meanwhile spawns the next job here
 ```
 
-- `argv = cmd ++ {"--width", bucket} ++ (ascii and {"--ascii"} or {}) ++ args`; never `--theme` (it emits ANSI). `vim.system(argv, {stdin = source, text = true, timeout = timeout_ms}, on_exit)`.
+- `argv = cmd ++ {"--width", width} ++ (ascii and {"--ascii"} or {}) ++ args`; never `--theme` (it emits ANSI). `vim.system(argv, {stdin = source, text = true, timeout = timeout_ms}, on_exit)`.
 - Result: exit 0 → stdout lines, leading *and* trailing blanks dropped (real termaid output may start with blank lines), tabs expanded (none left → error `"empty output"`), stderr ignored on exit 0; exit 124 (`vim.system` timeout) → `"timeout"`; otherwise the first stderr line or `"exit <code>"`.
 - Chunks: per line, runs of box-drawing and arrow characters (U+2500–U+259F, U+25A0–U+25FF, U+2190–U+21FF) and `-|+<>^v` get `MadaDiagramLine`, other runs `MadaDiagramText`; built once per result (FR-D14).
-- `on_exit` → `vim.schedule`: stop if `state[buf]` is gone or replaced (FR-M8); set `job = nil` and `diagram` or `err`; if rendered, render the block's rows (found from the anchor row); emit `User MadaDiagram {buf, row, status}`.
+- `on_exit` → `vim.schedule`: stop if `state[buf]` is gone or replaced (FR-M8); set `job = nil` and `diagram` or `err`; if rendered, render the block's rows (found from the anchor row) in the most recent requesting window, or one surviving window if it closed. Rendering once prevents unequal splits from continually launching jobs for each other's widths (FR-D16). Emit `User MadaDiagram {buf, row, status}`.
 - One job per block. No concurrency limit, no sharing across buffers, no cancellation: a job for an old key completes and becomes the last diagram.
 - `:Mada render!`: clear `err` and set `diagram.key = nil` for every block of the buffer, then `render_view`.
 - termaid missing (`exepath(cmd[1]) == ""`, checked once per session): blocks render as code blocks; one WARN (FR-D3).
@@ -366,7 +367,7 @@ Defaults (README's table must match, FR-C3):
     placement = "replace",                    -- "replace" | "off"
     cmd = { "termaid" },                      -- string or list
     args = {},
-    width_bucket = 10,
+    width_bucket = 10,                        -- deprecated, ignored
     timeout_ms = 5000,
     pending_text = "rendering diagram…",
   },

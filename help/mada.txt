@@ -234,7 +234,8 @@ mermaid.args                                        *mada-option-mermaid.args*
 
 mermaid.width_bucket                        *mada-option-mermaid.width_bucket*
     number (default `10`)
-    Diagram width is rounded down to a multiple of this.
+    Deprecated and ignored; accepted for compatibility. Diagrams use the
+    full available text width and are re-rendered on window resize.
 
 mermaid.timeout_ms                            *mada-option-mermaid.timeout_ms*
     number (default `5000`)
@@ -380,7 +381,7 @@ user `:hi` overrides win. No colour setup is needed:
 9. Mermaid                                                      *mada-mermaid*
 
 Each Mermaid block (a fenced code block whose language is `mermaid`) keeps
-its own state, keyed by its source, width bucket and `ascii`:
+its own state, keyed by its source, available text width and `ascii`:
 
     Pending
         when: in view, no diagram yet
@@ -398,9 +399,13 @@ its own state, keyed by its source, width bucket and `ascii`:
         when: job errored after a key change, previous diagram exists
         shows: the previous diagram + one error row below it
 
+Diagrams use the window's full text width, excluding gutters, and re-render
+automatically on resize. The Nix-packaged termaid includes the Gantt width
+fix; unpatched termaid 0.9.0 ignores the requested width for Gantt charts.
+
 Fence rows are hidden like an ordinary code block's (`code.hide_fences`).
 A block always keeps its latest diagram (FR-D17): editing the source,
-crossing a width bucket, or toggling `ascii` never clears what is on screen
+changing the available width, or toggling `ascii` never clears the diagram
 until the new job's result is applied, so a block never flicks to pending
 and back. The diagram is drawn as overlays over its content rows; a
 diagram shorter than its content leaves blank rows, and a taller one

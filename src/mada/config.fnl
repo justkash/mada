@@ -51,6 +51,7 @@
                            ; string or list
                            :cmd [:termaid]
                            :args []
+                           ; deprecated, accepted but ignored
                            :width_bucket 10
                            :timeout_ms 5000
                            :pending_text "rendering diagram…"}

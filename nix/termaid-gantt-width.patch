@@ -1,0 +1,128 @@
+diff --git a/src/termaid/__init__.py b/src/termaid/__init__.py
+--- a/src/termaid/__init__.py
++++ b/src/termaid/__init__.py
+@@ -44,6 +44,7 @@
+     rounded_edges: bool = True,
+     gap: int = 4,
+     inline_edge_labels: bool = False,
++    width: int | None = None,
+ ) -> str:
+     """Render mermaid syntax as Unicode (or ASCII) art.
+ 
+@@ -54,6 +55,7 @@
+         padding_y: Vertical padding inside node boxes
+         gap: Space between nodes (default: 4)
+         inline_edge_labels: Attach flowchart labels directly to their edges
++        width: Width of Gantt charts (default: 80)
+ 
+     Returns:
+         Rendered diagram as a string
+@@ -106,7 +108,8 @@
+         from .parser.gantt import parse_gantt
+         from .renderer.gantt import render_gantt
+         diagram = parse_gantt(text)
+-        return render_gantt(diagram, use_ascii=use_ascii).to_string()
++        gantt_kwargs = {} if width is None else {"width": width}
++        return render_gantt(diagram, use_ascii=use_ascii, **gantt_kwargs).to_string()
+ 
+     if text.startswith("architecture"):
+         from .parser.architecture import parse_architecture
+@@ -194,6 +197,7 @@
+     theme: str = "default",
+     gap: int = 4,
+     inline_edge_labels: bool = False,
++    width: int | None = None,
+ ):
+     """Render mermaid syntax as a Rich Text object with colors.
+ 
+@@ -207,6 +211,7 @@
+         theme: Color theme name (default, terra, neon, mono, amber, phosphor)
+         gap: Space between nodes (default: 4)
+         inline_edge_labels: Attach flowchart labels directly to their edges
++        width: Width of Gantt charts (default: 80)
+ 
+     Returns:
+         rich.text.Text object
+@@ -263,7 +268,8 @@
+         from .renderer.gantt import render_gantt
+         from .output.rich import render_sequence_rich
+         diagram = parse_gantt(text)
+-        canvas = render_gantt(diagram, use_ascii=use_ascii)
++        gantt_kwargs = {} if width is None else {"width": width}
++        canvas = render_gantt(diagram, use_ascii=use_ascii, **gantt_kwargs)
+         return render_sequence_rich(canvas, theme=theme)
+ 
+     if text.startswith("architecture"):
+diff --git a/src/termaid/cli.py b/src/termaid/cli.py
+--- a/src/termaid/cli.py
++++ b/src/termaid/cli.py
+@@ -70,6 +70,7 @@
+             rounded_edges=not args.sharp_edges,
+             gap=gap,
+             inline_edge_labels=args.inline_edge_labels,
++            width=target_width,
+         )
+         if _max_line_width(_plain(candidate)) <= target_width:
+             return candidate
+@@ -281,6 +282,7 @@
+                 rounded_edges=not args.sharp_edges,
+                 gap=args.gap,
+                 inline_edge_labels=args.inline_edge_labels,
++                width=args.width,
+             )
+             rich_result = _auto_fit(
+                 rich_result, render_source, args,
+@@ -310,6 +312,7 @@
+                 rounded_edges=not args.sharp_edges,
+                 gap=args.gap,
+                 inline_edge_labels=args.inline_edge_labels,
++                width=args.width,
+             )
+             result = _auto_fit(
+                 result, render_source, args,
+diff --git a/src/termaid/renderer/gantt.py b/src/termaid/renderer/gantt.py
+--- a/src/termaid/renderer/gantt.py
++++ b/src/termaid/renderer/gantt.py
+@@ -86,2 +86,3 @@
+-    # Layout: labels start at column 3 and need a blank column before the axis
+-    margin_l = max_label_width + 4
++    # Give labels at most half the width, leaving room for the timeline.
++    width = max(1, width)
++    margin_l = min(max_label_width + 4, (width - 1) // 2)
+@@ -89,2 +89,0 @@
+-    if chart_w < 10:
+-        chart_w = 10
+@@ -104,3 +103,3 @@
+-    canvas = Canvas(total_w + 1, total_h + 1)
+-
+-    # Title
++    canvas = Canvas(width, total_h + 1)
++
++    # Center the title across the full output width, not only the timeline.
+@@ -108,2 +107,3 @@
+-        tx = margin_l + (chart_w - display_width(diagram.title)) // 2
+-        canvas.put_text(0, max(0, tx), diagram.title, style="label")
++        title = truncate_to_width(diagram.title, width)
++        tx = (width - display_width(title)) // 2
++        canvas.put_text(0, tx, title, style="label")
+@@ -116 +116,2 @@
+-            canvas.put_text(row, 1, section_title, style=f"sectionfg:{section_idx}")
++            section_label = truncate_to_width(section_title, max(0, margin_l - 1))
++            canvas.put_text(row, 1, section_label, style=f"sectionfg:{section_idx}")
+@@ -121 +122 @@
+-            avail = margin_l - 4
++            avail = max(0, margin_l - 4)
+@@ -178 +179,2 @@
+-            canvas.put_text(label_row, max(margin_l + 1, label_x), label, style="edge_label")
++            label_x = min(max(margin_l + 1, label_x), max(0, width - display_width(label)))
++            canvas.put_text(label_row, label_x, label, style="edge_label")
+@@ -198,3 +200,2 @@
+-    n_ticks = min(6, total_days)
+-    if n_ticks < 2:
+-        n_ticks = 2
++    # Reduce tick count when dates would collide on a narrow timeline.
++    n_ticks = min(6, total_days, max(1, (chart_w - 1) // 8))
+@@ -209 +210,2 @@
+-        canvas.put_text(axis_row + 1, max(0, label_x), label, style="edge_label")
++        label_x = min(max(0, label_x), max(0, width - display_width(label)))
++        canvas.put_text(axis_row + 1, label_x, label, style="edge_label")

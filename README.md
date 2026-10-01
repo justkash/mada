@@ -12,7 +12,7 @@ milestones in architecture §16.
 
 - Rendered in Normal mode; raw Markdown in Insert, Replace and Select mode.
 - Cursor row always shown raw, even while rendered (anti-conceal).
-- Mermaid fences render as text diagrams via [termaid](https://github.com/fasouto/termaid), asynchronously, in place of the source.
+- Mermaid fences render as text diagrams via [termaid](https://github.com/fasouto/termaid), asynchronously, in place of the source, using the available text width and re-rendering when the window is resized.
 - Minimal, [glamour](https://github.com/charmbracelet/glamour)-inspired look: no margins or reflow of source rows, which keep their mapping to file lines. Pipe table cells wrap to the window in a virtual-text grid with a separator below the header and separators between columns, without outer borders or body row lines. When any cell wraps, a blank grid row separates adjacent body rows; tables whose cells fit on one visual line stay compact.
 - Task items hide their bullet; the checkbox takes its place.
 - Never modifies the buffer: text, undo history, `modified` and `changedtick` are untouched.
@@ -36,7 +36,10 @@ Stays off when render-markdown.nvim or markview.nvim is also loaded (FR-M9).
 
 This flake packages termaid: `nix build .#termaid`, and `nix develop` puts
 it on `$PATH`. `nix run` (a Neovim with mada installed and set up) has it
-on `$PATH` too, so its Mermaid demo blocks render.
+on `$PATH` too, so its Mermaid demo blocks render. The packaged backend
+includes a fix for Gantt charts to honor the requested width; unpatched
+termaid 0.9.0 installations keep Gantt charts at their default width.
+In narrow windows, Gantt task labels shorten to keep the timeline visible.
 
 ## Install
 
@@ -116,7 +119,7 @@ require("mada").setup({
     placement = "replace",                    -- "replace" | "off"
     cmd = { "termaid" },                      -- string or list
     args = {},
-    width_bucket = 10,
+    width_bucket = 10,                        -- deprecated, ignored
     timeout_ms = 5000,
     pending_text = "rendering diagram…",
   },

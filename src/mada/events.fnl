@@ -437,7 +437,13 @@ WinResized, ColorScheme). Called on every setup()."
                                   :pattern [:wrap
                                             :linebreak
                                             :showbreak
-                                            :breakindent]
+                                            :breakindent
+                                            :number
+                                            :relativenumber
+                                            :numberwidth
+                                            :signcolumn
+                                            :foldcolumn
+                                            :statuscolumn]
                                   :callback (fn []
                                               (let [win (vim.api.nvim_get_current_win)
                                                     buf (vim.api.nvim_win_get_buf win)]

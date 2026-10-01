@@ -91,8 +91,8 @@ Realised by FR-M6, FR-M7, FR-T5, FR-A1; AT-1, AT-14, AT-26.
 | **Mermaid block** | A `fenced_code_block` whose language is `mermaid` (FR-D1). "Block" in §4.5 means a Mermaid block. |
 | **Backend** | An adapter that turns Mermaid source into lines of text via an external process. |
 | **Viewport range** | `[line("w0") - viewport_margin, line("w$") + viewport_margin]` clamped to the buffer, for the window that triggered the render. |
-| **Width bucket** | Usable text width of the window rounded down to a multiple of `mermaid.width_bucket`. |
-| **Block key** | `source .. "\0" .. width_bucket .. "\0" .. ascii` for a Mermaid block. A diagram is current when it was produced for the block's current key. |
+| **Diagram width** | Full usable text width of the window, excluding gutters, with a minimum of one column. |
+| **Block key** | `source .. "\0" .. width .. "\0" .. ascii` for a Mermaid block. A diagram is current when it was produced for the block's current key. |
 | **Reference document** | `test/fixtures/reference.md`: 2,026 lines covering every element class in UR-3, including tables, 3 fenced code blocks and 1 Mermaid block whose diagram is already drawn, shown in an 80-row window. The budgets in §5.1 are measured against it. |
 
 ## 4. Functional requirements
@@ -183,11 +183,11 @@ Serves UR-3, UR-5.
 - **FR-D10 Placement `off`.** Blocks render as ordinary code blocks.
 - **FR-D11 Errors.** Non-zero exit or timeout records an error for the job's key: the first stderr line, or `"timeout"`. A block with no diagram renders as a code block plus one `virt_lines` row `"[termaid] <message>"` in `MadaDiagramError`. A block that was showing a diagram keeps it, and the error row is added below it (FR-D17). An error is not retried for the same key until `:Mada render!`.
 - **FR-D12 Pending state.** While a job runs for a block with no previous diagram in this buffer, the block renders as a code block plus one `virt_lines` row with `mermaid.pending_text` in `MadaDiagramPending`, unless `pending_text` is empty. A block that already shows a diagram keeps it instead (FR-D17).
-- **FR-D13 Width.** termaid is asked for a maximum width equal to the width bucket, and for ASCII output when `ascii = true`. Output rows longer than the window are clipped by Neovim (virtual lines do not wrap); the plugin does not truncate.
+- **FR-D13 Width.** termaid is asked for the full available text width (window width minus gutters, minimum one column), and for ASCII output when `ascii = true`. The diagram key uses the exact width measured on each render; window resize events and explicit gutter option changes re-render diagrams automatically, including changes of a single column. `mermaid.width_bucket` is deprecated and ignored, but accepted for compatibility. Output rows longer than the window are clipped by Neovim (virtual lines do not wrap); the plugin does not truncate.
 - **FR-D14 Colourisation.** Diagram rows are split into chunks: characters in U+2500–U+259F, U+25A0–U+25FF, U+2190–U+21FF and the ASCII set `-|+<>^v` get `MadaDiagramLine`; all other characters get `MadaDiagramText`. Chunking happens once per result.
 - **FR-D15 Insert mode.** Raw mode removes `conceal_lines` and `virt_lines` with the rest of the namespace; the source is fully visible and editable.
 - **FR-D16 Multiple windows.** Marks are buffer-scoped. Width is taken from the window that triggered the render; other windows showing the same buffer may clip. Documented limitation for v1.
-- **FR-D17 Keep the last diagram.** Each block keeps its latest diagram, identified by an anchor mark on its opening fence row so it survives edits elsewhere in the buffer and raw mode. When the block's key changes (source edited, width bucket crossed, `ascii` toggled), that diagram stays exactly as drawn until the new result is applied, so the block never switches to the pending state and back. Block state is dropped when the anchor's row is deleted or the buffer detaches.
+- **FR-D17 Keep the last diagram.** Each block keeps its latest diagram, identified by an anchor mark on its opening fence row so it survives edits elsewhere in the buffer and raw mode. When the block's key changes (source edited, available width changed, `ascii` toggled), that diagram stays exactly as drawn until the new result is applied, so the block never switches to the pending state and back. Block state is dropped when the anchor's row is deleted or the buffer detaches.
 
 Retired: FR-D2 (diagram kind detection), FR-D4 and FR-D5 (shared cache), FR-D9 (`below`/`above` placement), FR-D18 (pre-render on open).
 
@@ -383,7 +383,7 @@ Diagram glyphs come from termaid: Unicode by default, ASCII (`--ascii`) when `as
 
 ## 8. Backend: termaid (v1)
 
-- Invocation: `termaid --width <bucket> [--ascii] <extra args>` with source on stdin, plain text on stdout, no `--theme` (that emits ANSI).
+- Invocation: `termaid --width <width> [--ascii] <extra args>` with source on stdin, plain text on stdout, no `--theme` (that emits ANSI).
 - Language: Python 3, pure Python package, zero dependencies. `pip install termaid`, `pipx install termaid`, or `uvx termaid` (`mermaid.cmd` may be a list, e.g. `{"uvx", "termaid"}`).
 - Coverage: flowchart, sequence, class, ER, state, block, gitGraph, gantt, architecture, pie (rendered as horizontal bars), treemap, mindmap, timeline, kanban, quadrant, XY chart, journey, packet.
 - Startup cost: interpreter + import, tens of milliseconds per diagram; hidden by asynchrony and by keeping the last diagram (FR-D17). Whether that is fast enough is OQ-6.
